@@ -130,6 +130,11 @@ export function step(state: GameState): GameEvent[] {
   return events;
 }
 
+/** Points for a place reached without finishing: half of the place's points, rounded down, at least 1. */
+export function lateFinishPoints(place: number): number {
+  return Math.max(1, Math.floor((POINTS_BY_PLACE[place - 1] ?? 0) / 2));
+}
+
 function finish(state: GameState, p: PlayerState, race: number, events: GameEvent[]): void {
   p.finished = true;
   p.finishTicks = race;
@@ -144,12 +149,13 @@ function finish(state: GameState, p: PlayerState, race: number, events: GameEven
   if (p.place === 1) state.firstFinishTick = state.roundTick;
 }
 
-/** Places for those who did not finish (by how far down they got), then results or the end of the match. */
+/** Places (by how far down they got) and half points for those who did not finish, then results or the end of the match. */
 function endRun(state: GameState, events: GameEvent[]): void {
   const racers = sortedPlayers(state).filter((p) => p.racing);
   const late = racers.filter((p) => !p.finished).sort((a, b) => b.y - a.y || a.slot - b.slot);
   late.forEach((p, i) => {
     p.place = state.finishedCount + i + 1;
+    p.points += lateFinishPoints(p.place);
   });
   for (const p of Object.values(state.players)) {
     p.steer = 0;

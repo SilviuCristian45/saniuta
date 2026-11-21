@@ -1,0 +1,110 @@
+/* On-screen joystick and snowball button (TouchInput). */
+
+.touch-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.touch-controls.hidden {
+  display: none;
+}
+
+.touch-pad,
+.touch-fire {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/* Joystick: a ring with a knob that follows the thumb; the upper part is marked for kicking. */
+.touch-pad {
+  --size: min(42vh, 180px);
+  width: var(--size);
+  height: var(--size);
+  left: calc(env(safe-area-inset-left, 0px) + 18px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 16%, rgba(255, 255, 255, 0.16) 0 15%, transparent 16%), rgba(20, 28, 58, 0.5);
+  border: 2px solid rgba(230, 240, 255, 0.4);
+  box-sizing: border-box;
+}
+
+.touch-pad .knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 42%;
+  height: 42%;
+  margin: -21% 0 0 -21%;
+  border-radius: 50%;
+  background: rgba(240, 246, 255, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-sizing: border-box;
+}
+
+.touch-pad.active .knob {
+  background: rgba(255, 214, 140, 0.9);
+}
+
+/* Snowball button: a big round button with one dot per snowball carried. */
+.touch-fire {
+  --size: min(32vh, 130px);
+  width: var(--size);
+  height: var(--size);
+  right: calc(env(safe-area-inset-right, 0px) + 26px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 26px);
+  border-radius: 50%;
+  border: 3px solid rgba(220, 236, 255, 0.85);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font: bold calc(var(--size) * 0.12) 'Trebuchet MS', sans-serif;
+  letter-spacing: 1px;
+  color: #fff;
+  background: rgba(90, 130, 200, 0.55);
+  box-shadow: 0 0 16px rgba(180, 210, 255, 0.5);
+  transition: transform 0.06s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.touch-fire.empty {
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+.touch-fire.pressed {
+  transform: scale(0.92);
+}
+
+.touch-fire .dots {
+  display: flex;
+  gap: 5px;
+}
+
+.touch-fire .dots i {
+  width: calc(var(--size) * 0.12);
+  height: calc(var(--size) * 0.12);
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-sizing: border-box;
+}
+
+.touch-fire .dots i.full {
+  background: #fff;
+}
+
+.touch-controls.left-handed .touch-pad {
+  left: auto;
+  right: calc(env(safe-area-inset-right, 0px) + 18px);
+}
+
+.touch-controls.left-handed .touch-fire {
+  right: auto;
+  left: calc(env(safe-area-inset-left, 0px) + 26px);
+}

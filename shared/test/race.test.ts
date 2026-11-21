@@ -9,6 +9,7 @@ import {
   addPlayer,
   centerAt,
   computeStandings,
+  lateFinishPoints,
   countdownSeconds,
   createGameState,
   currentTrack,
@@ -53,6 +54,25 @@ describe('countdown', () => {
 });
 
 describe('finishing', () => {
+  it('those still on the way get half the points of their place, rounded down, at least 1', () => {
+    expect([1, 2, 3, 4, 5, 6].map(lateFinishPoints)).toEqual([5, 3, 2, 1, 1, 1]);
+  });
+
+  it('the ones not down in time are placed by distance and scored half', () => {
+    const state = makeRace([{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }]);
+    const track = currentTrack(state);
+    const c = centerAt(track, track.finishY);
+    Object.assign(state.players.a!, { x: c, y: track.finishY - px(2), vy: px(10) });
+    Object.assign(state.players.b!, { x: c - px(60), y: track.startY + px(900) });
+    Object.assign(state.players.c!, { x: c + px(60), y: track.startY + px(3000) });
+    Object.assign(state.players.d!, { x: c, y: track.startY });
+    // The others brake all the way, so they are still far up when the 15 s are over.
+    const brake = { throttle: -100 };
+    const events = run(state, FINISH_GRACE_TICKS + 2, { b: brake, c: brake, d: brake });
+    expect(events.find((e) => e.type === 'roundEnd')).toEqual({ type: 'roundEnd', round: 1, order: ['a', 'c', 'b', 'd'] });
+    expect(['a', 'c', 'b', 'd'].map((id) => state.players[id]!.points)).toEqual([10, 3, 2, 1]);
+  });
+
   it('places score 10/7/5/3/2/1; the others get 15 s after the first, then the run ends', () => {
     const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].slice(0, 6);
     const state = makeRace(ids.map((id) => ({ id })));
@@ -74,7 +94,7 @@ describe('finishing', () => {
     expect(end).toEqual({ type: 'roundEnd', round: 1, order: ['a', 'b', 'c', 'd', 'e', 'f'] });
     expect(state.players.f!.finished).toBe(false);
     expect(state.players.f!.place).toBe(6);
-    expect(state.players.f!.points).toBe(0);
+    expect(state.players.f!.points).toBe(1); // half of 1, at least 1
     expect(state.phase).toBe('results');
     expect(state.players.a!.bestTicks).toBe(state.players.a!.finishTicks);
     expect(ticksToMs(30)).toBe(1000);

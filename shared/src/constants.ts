@@ -119,7 +119,8 @@ export const FINISHED_FRICTION = 30;
 export const ROUND_OPTIONS: readonly number[] = [3, 5, 7];
 export const DEFAULT_ROUNDS = 3;
 
-// Scoring: points by finishing place; not finishing in time scores nothing.
+// Scoring: points by place. Finishers get them in full; those still on the way when the run ends
+// are placed by distance and get half of their place's points (rounded down), at least 1.
 export const POINTS_BY_PLACE: readonly number[] = [10, 7, 5, 3, 2, 1];
 
 // Tracks (GameState.trackId)

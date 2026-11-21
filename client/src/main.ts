@@ -1,32 +1,50 @@
 import Phaser from 'phaser';
-import { GAME_TITLE } from '@saniuta/shared';
+import './style.css';
+import { isTouch } from './device';
+import { LocalTransport } from './net/LocalTransport';
+import { GAME_H, GAME_W } from './render/layout';
+import { GameScene, type GameSceneData } from './scenes/GameScene';
+import { initRotatePrompt } from './ui/orientation';
+import { debug, quickBotLevel, quickBots, quickRounds, quickSeed, quickTrack, tune } from './urlOptions';
 
-/** Stage 0 placeholder: an evening sky over a snowy slope, until the real scenes arrive in stage 2. */
-class PlaceholderScene extends Phaser.Scene {
-  constructor() {
-    super('placeholder');
-  }
+// Stage 2: the page starts a local match against bots right away (menus and the lobby come next).
+// URL options: ?bots=1..5, ?rounds=3|5|7, ?track=0..3, ?seed=abc, ?botlevel=usor|mediu|greu,
+// ?debug, ?tune, ?touch / ?touch=0.
+if (tune) document.body.classList.add('tuning');
 
-  create(): void {
-    const { width, height } = this.scale;
-    const sky = this.add.graphics();
-    sky.fillGradientStyle(0x0d1530, 0x0d1530, 0x6b3a5e, 0x6b3a5e, 1);
-    sky.fillRect(0, 0, width, height * 0.6);
-    sky.fillStyle(0xe8eef8, 1);
-    sky.fillRect(0, height * 0.6, width, height * 0.4);
-    this.add
-      .text(width / 2, height * 0.42, GAME_TITLE, { fontFamily: 'system-ui, sans-serif', fontSize: '48px', color: '#fff6e0' })
-      .setOrigin(0.5);
-    this.add
-      .text(width / 2, height * 0.52, 'în lucru: etapa 0', { fontFamily: 'system-ui, sans-serif', fontSize: '20px', color: '#c8d4ec' })
-      .setOrigin(0.5);
-  }
+function localMatch(seed = quickSeed): GameSceneData {
+  return {
+    transport: new LocalTransport({
+      name: 'Tu',
+      bots: quickBots,
+      botLevel: quickBotLevel,
+      rounds: quickRounds,
+      trackId: quickTrack,
+      seed,
+      autoStart: true,
+    }),
+    debug,
+    tune,
+    newMatch: () => localMatch(Math.random().toString(36).slice(2)),
+  };
 }
 
-new Phaser.Game({
+if (isTouch) {
+  document.body.classList.add('touch');
+  document.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'stage',
-  backgroundColor: '#0d1530',
-  scale: { mode: Phaser.Scale.RESIZE, width: window.innerWidth, height: window.innerHeight },
-  scene: [PlaceholderScene],
+  width: GAME_W,
+  height: GAME_H,
+  backgroundColor: '#141b33',
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+  // The canvas only sees one finger at a time; the HTML touch controls track their own.
+  input: { activePointers: 1 },
 });
+// ?debug: the game object for scripted browser tests.
+if (debug) (window as unknown as { __game?: Phaser.Game }).__game = game;
+initRotatePrompt();
+game.scene.add('game', GameScene, true, localMatch());
