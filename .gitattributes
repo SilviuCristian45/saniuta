@@ -1,0 +1,17 @@
+# Normalize all text files to LF (deploy target is Linux)
+* text=auto eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.ogg binary
+*.mp3 binary
+*.wav binary
+*.m4a binary
+*.woff binary
+*.woff2 binary
+*.ttf binary

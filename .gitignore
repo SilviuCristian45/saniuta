@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+coverage/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*~
+
+# Local leaderboard database (server/data/leaderboard.db in dev)
+data/
