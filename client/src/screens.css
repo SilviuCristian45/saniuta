@@ -910,3 +910,69 @@
 body.tuning .game-corner {
   right: calc(var(--sar) + 320px);
 }
+
+/* Toasts in the top-right corner (who joined, left, the new host), under the game's corner buttons. */
+.toasts {
+  position: fixed;
+  z-index: 45;
+  top: calc(var(--sat) + 56px);
+  right: calc(var(--sar) + 10px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.toast {
+  box-sizing: border-box;
+  height: 28px;
+  margin-bottom: 6px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: #fff;
+  white-space: nowrap;
+  background: rgba(20, 27, 51, 0.92);
+  border: 1px solid var(--line-dim);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  opacity: 0;
+  transition:
+    opacity 0.25s,
+    transform 0.25s,
+    height 0.25s,
+    margin 0.25s;
+}
+
+.toast.in {
+  opacity: 1;
+}
+
+.toast.out {
+  opacity: 0;
+  transform: translateY(-14px);
+  height: 0;
+  margin-bottom: 0;
+}
+
+.toast b {
+  color: var(--accent);
+}
+
+/* "Se reconectează..." at the top, over everything but dialogs. */
+.conn-banner {
+  position: fixed;
+  z-index: 50;
+  top: calc(var(--sat) + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  font-size: 16px;
+  color: #2a1a10;
+  background: var(--accent);
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+}

@@ -32,5 +32,23 @@ export interface GameTransport {
   isPaused(): boolean;
   setPaused(paused: boolean): void;
   connectionStatus(): ConnectionStatus;
+  /** Why the connection closed, shown back in the menu. */
+  readonly closeReason: string;
+  /** Online only, for ?debug. */
+  netStats?(): NetStats;
   dispose(): void;
+}
+
+export interface NetStats {
+  /** Round trip to the server, ms (smoothed). */
+  pingMs: number;
+  /** How far the drawn own sled still is from its prediction (the correction being smoothed out), px. */
+  predictionErrorPx: number;
+  /** Inputs sent but not processed by the server yet. */
+  unconfirmed: number;
+  /** Corrections of the own sled larger than a few pixels, in the last second. */
+  bigCorrectionsPerSecond: number;
+  /** Simulated latency (?lag/?jitter), 0 when off. */
+  lagMs: number;
+  jitterMs: number;
 }

@@ -91,7 +91,7 @@ export class LobbyScene extends Phaser.Scene {
     this.screen = new LobbyScreen(phaserHost(this), this.transport);
   }
 
-  update(_time: number, delta: number): void {
-    this.screen.update(delta);
+  update(time: number, delta: number): void {
+    this.screen.update(time, delta);
   }
 }

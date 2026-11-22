@@ -11,6 +11,7 @@ import {
   type GameState,
 } from '@saniuta/shared';
 import { DEPTH, FONT, HUD_DEPTH, px } from '../render/layout';
+import type { NetStats } from '../net/GameTransport';
 import type { Pose } from '../net/view';
 
 type Add = <T extends Phaser.GameObjects.GameObject>(obj: T) => T;
@@ -31,7 +32,7 @@ export class DebugOverlay {
     );
   }
 
-  update(state: Readonly<GameState>, me: string, fps: number, poses: ReadonlyMap<string, Pose>): void {
+  update(state: Readonly<GameState>, me: string, fps: number, poses: ReadonlyMap<string, Pose>, net?: NetStats): void {
     const g = this.g.clear();
     const track = currentTrack(state);
     const p = state.players[me];
@@ -66,7 +67,16 @@ export class DebugOverlay {
         `viteză ${speedOf(p)}  heading ${p.heading}  steer ${p.steer} throttle ${p.throttle}`,
         `aer ${p.airTicks}/${p.airTotal}  răsturnat ${p.crashTicks}  grație ${p.graceTicks}  bulgări ${p.snowballs}`,
         `suprafață ${SURFACES[surfaceAt(track, p.x, p.y)]}  pantă ${slopeAt(track, p.y)}%  seq ${p.lastSeq}`,
-      ].join('\n'),
+        net ? netLine(net) : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
     );
   }
+}
+
+/** Online: ping, the correction still being smoothed out, unconfirmed inputs, big corrections. */
+function netLine(net: NetStats): string {
+  const sim = net.lagMs || net.jitterMs ? `  (simulat +${net.lagMs}±${net.jitterMs} ms)` : '';
+  return `net: ping ${net.pingMs} ms${sim}  eroare predicție ${net.predictionErrorPx.toFixed(1)} px  neconfirmate ${net.unconfirmed}  corecții mari ${net.bigCorrectionsPerSecond}/s`;
 }

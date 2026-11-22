@@ -1,0 +1,78 @@
+import { schema, t, type SchemaType } from '@colyseus/schema';
+
+// Synchronized mirror of the shared GameState (see mirror.ts). It carries every field, rng
+// included: clients predict by running the same simulation from it, so it must be complete.
+// A new GameState/PlayerState field goes into GAME_STATE_KEYS/GAME_ARRAY_KEYS/PLAYER_STATE_KEYS and here.
+
+export const PlayerSchema = schema(
+  {
+    id: t.string(),
+    name: t.string(),
+    slot: t.uint8(),
+    joinOrder: t.uint32(),
+    isBot: t.boolean(),
+    botLevel: t.uint8(),
+    connected: t.boolean(),
+    left: t.boolean(),
+    racing: t.boolean(),
+    x: t.int32(),
+    y: t.int32(),
+    vx: t.int32(),
+    vy: t.int32(),
+    heading: t.uint16(),
+    steer: t.int8(),
+    throttle: t.int8(),
+    firePressed: t.boolean(),
+    lastSeq: t.uint32(),
+    airTicks: t.uint16(),
+    airTotal: t.uint16(),
+    crashTicks: t.uint16(),
+    graceTicks: t.uint16(),
+    splatTicks: t.uint16(),
+    snowballs: t.uint8(),
+    throwCooldown: t.uint16(),
+    finished: t.boolean(),
+    finishTicks: t.uint32(),
+    place: t.uint8(),
+    points: t.uint16(),
+    wins: t.uint16(),
+    bestTicks: t.uint32(),
+    crashes: t.uint16(),
+    hits: t.uint16(),
+    jumps: t.uint16(),
+    pickups: t.uint16(),
+    idle: t.boolean(),
+  },
+  'Player',
+);
+export type PlayerSchema = SchemaType<typeof PlayerSchema>;
+
+export const RoomState = schema(
+  {
+    code: t.string(),
+    phase: t.string(),
+    hostId: t.string(),
+    roundsTotal: t.uint8(),
+    botLevel: t.uint8(),
+    trackId: t.uint8(),
+    trackSeed: t.uint32(),
+    round: t.uint8(),
+    tick: t.uint32(),
+    roundTick: t.uint32(),
+    phaseTimer: t.uint32(),
+    firstFinishTick: t.uint32(),
+    finishedCount: t.uint8(),
+    rng: t.uint32(),
+    joinCounter: t.uint32(),
+    pileTimers: t.array('uint16'),
+    ballX: t.array('int32'),
+    ballY: t.array('int32'),
+    ballVx: t.array('int32'),
+    ballVy: t.array('int32'),
+    ballTicks: t.array('uint16'),
+    ballOwner: t.array('uint8'),
+    players: t.map(PlayerSchema),
+  },
+  'RoomState',
+);
+export type RoomState = SchemaType<typeof RoomState>;

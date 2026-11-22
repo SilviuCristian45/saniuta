@@ -21,9 +21,11 @@ import {
 } from '@saniuta/shared';
 import { isTouch } from '../device';
 import type { GameTransport } from '../net/GameTransport';
+import { ConnectionBanner } from '../ui/ConnectionBanner';
 import { el } from '../ui/el';
 import { button, setButtonStyle, setText, show } from '../ui/html';
 import { fullscreenOnFirstTap } from '../ui/orientation';
+import { notifyPresence } from '../ui/presence';
 import { openSettings } from '../ui/settingsDialog';
 import type { ScreenHost } from './host';
 
@@ -65,6 +67,7 @@ export class LobbyScreen {
   private leaving = false;
   private hint!: HTMLElement;
   private countText!: HTMLElement;
+  private readonly banner: ConnectionBanner;
 
   constructor(
     private readonly host: ScreenHost,
@@ -72,6 +75,7 @@ export class LobbyScreen {
   ) {
     fullscreenOnFirstTap();
     host.mount('lobby', [el('div', { class: 'lobby-grid' }, [this.createHead(), this.createPlayers(), this.createSide()])]);
+    this.banner = new ConnectionBanner(host.life, (message) => host.go({ to: 'menu', data: { message } }));
     // A match started while the page was in the background: switch as soon as it is shown again,
     // not only from update() (no frames run while hidden).
     document.addEventListener('visibilitychange', this.onVisible);
@@ -169,9 +173,11 @@ export class LobbyScreen {
     ]);
   }
 
-  /** Every frame, with the frame's duration. */
-  update(delta: number): void {
+  /** Every frame: the time (ms, for the reconnecting dots) and the frame's duration. */
+  update(time: number, delta: number): void {
+    if (!this.banner.update(this.transport, time)) return;
     this.transport.update(delta);
+    notifyPresence(this.transport);
     if (this.enterGameIfStarted()) return;
     const state = this.transport.getState();
     this.syncPlayers(state);

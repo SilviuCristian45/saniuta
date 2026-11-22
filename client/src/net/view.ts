@@ -40,13 +40,13 @@ export function isRoundReset(prev: Readonly<GameState>, next: Readonly<GameState
   return next.round !== prev.round || next.phase !== prev.phase || next.roundTick < prev.roundTick;
 }
 
-interface BallSnap {
+export interface BallSnap {
   x: number;
   y: number;
   ticks: number;
 }
 
-function ballsOf(state: Readonly<GameState>): BallSnap[] {
+export function ballsOf(state: Readonly<GameState>): BallSnap[] {
   return Array.from({ length: BALL_SLOTS }, (_, i) => ({ x: state.ballX[i] ?? 0, y: state.ballY[i] ?? 0, ticks: state.ballTicks[i] ?? 0 }));
 }
 

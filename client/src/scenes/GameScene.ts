@@ -29,11 +29,13 @@ import { ensureTextures, TEX } from '../render/textures';
 import { TrackView } from '../render/TrackView';
 import { Trails } from '../render/Trails';
 import { getSetting, reducedEffects, vibrate } from '../settings';
+import { ConnectionBanner } from '../ui/ConnectionBanner';
 import { openDialog, type Dialog } from '../ui/dialog';
-import { useScaleMode } from '../ui/dom';
+import { sceneLifetime, useScaleMode } from '../ui/dom';
 import { el } from '../ui/el';
 import { button } from '../ui/html';
 import { fullscreenOnFirstTap } from '../ui/orientation';
+import { notifyPresence } from '../ui/presence';
 import type { LobbySceneData } from './menuScenes';
 
 export interface GameSceneData {
@@ -78,6 +80,7 @@ export class GameScene extends Phaser.Scene {
   /** The leave dialog paused the offline match, so closing it resumes. */
   private confirmPaused = false;
   private pauseButton?: HTMLButtonElement;
+  private connection!: ConnectionBanner;
 
   constructor() {
     super('game');
@@ -169,6 +172,8 @@ export class GameScene extends Phaser.Scene {
     };
     window.addEventListener('keydown', onEsc);
     const corner = this.createCornerButtons();
+    // Online: "Se reconectează..." while the room is down; back to the menu with the reason once it is gone.
+    this.connection = new ConnectionBanner(sceneLifetime(this), (message) => this.scene.start('menu', { message }));
     // A phone turned, or the window resized (Phaser refits the canvas first): the touch controls moved relative to it.
     const onResize = () => this.buildMinimap();
     this.scale.on(Phaser.Scale.Events.RESIZE, onResize);
@@ -193,12 +198,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
+    if (!this.connection.update(this.transport, time)) return;
     const before = this.transport.getState();
     const meBefore = before.players[this.transport.playerId];
     const input = this.controls.poll();
     const canRide = before.phase === 'playing' && !!meBefore?.racing && !meBefore.finished && !this.transport.isPaused() && !this.confirm;
     this.transport.setInput(canRide ? input : NO_INPUT);
     this.transport.update(delta);
+    notifyPresence(this.transport);
 
     const state = this.transport.getState();
     // "Încă un meci": back in the lobby phase, the lobby scene takes over.
@@ -229,7 +236,7 @@ export class GameScene extends Phaser.Scene {
     this.hud.update(state, this.transport.playerId);
     this.results.update(state, this.transport.playerId);
     this.pauseText.setText(this.transport.isPaused() ? `Pauză\n${isTouch ? '' : 'P = continuă'}` : '');
-    this.debugOverlay?.update(state, this.transport.playerId, this.game.loop.actualFps, this.view.poses);
+    this.debugOverlay?.update(state, this.transport.playerId, this.game.loop.actualFps, this.view.poses, this.transport.netStats?.());
   }
 
   /** A new track (first run, or a new random one): rebuild the slope and the minimap. */

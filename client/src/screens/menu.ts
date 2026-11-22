@@ -150,5 +150,7 @@ export class MenuScreen {
 function forgetInviteInUrl(): void {
   const url = new URL(window.location.href);
   url.searchParams.delete('room');
+  // Flag options stay flags (?debug, not ?debug=).
+  url.search = url.searchParams.toString().replace(/=(?=&|$)/g, '');
   window.history.replaceState(null, '', url);
 }

@@ -41,6 +41,7 @@ export class LocalTransport implements GameTransport {
   readonly playerId = 'local';
   readonly online = false;
   readonly pausable = true;
+  readonly closeReason = '';
   private readonly state: GameState;
   private readonly listeners = new Set<(events: GameEvent[]) => void>();
   private steer = 0;
