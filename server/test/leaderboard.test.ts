@@ -132,14 +132,19 @@ describe('the room saves counted runs', () => {
     const host = await colyseus.sdk.create(ROOM_NAME, { name: 'Ana' });
     const room = colyseus.getRoomById<SaniutaRoom>(host.roomId);
     const guest = await colyseus.sdk.joinById(host.roomId, { name: 'Ion' });
-    host.send('track', { trackId: TRACK_LUPULUI });
-    await room.waitForNextMessage();
-    host.send('addBot');
-    await room.waitForNextMessage();
-    host.send('start');
-    await room.waitForNextMessage();
     const game: GameState = room['game'];
-    expect(game.phase).toBe('playing');
+    // Waits for each lobby action to have happened, not for a number of messages or steps (a loaded
+    // machine may process them a step later).
+    const until = async (check: () => boolean) => {
+      for (let i = 0; i < 100 && !check(); i++) await room.waitForNextTimestep();
+      expect(check()).toBe(true);
+    };
+    host.send('track', { trackId: TRACK_LUPULUI });
+    await until(() => game.trackId === TRACK_LUPULUI);
+    host.send('addBot');
+    await until(() => Object.keys(game.players).length === 3);
+    host.send('start');
+    await until(() => game.phase === 'playing');
     game.roundTick = COUNTDOWN_TICKS + 10;
     return { host, guest, room, game };
   }
