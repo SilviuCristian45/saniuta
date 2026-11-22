@@ -62,4 +62,7 @@ Clasamentul vine în etapa 6: punctele lui se bifează atunci.
       `CapabilityBoundingSet=` gol, `SystemCallFilter=@system-service` (EPERM), `UMask=0077`, `MemoryMax=150M`.
 - [x] Header-e: HSTS, `nosniff`, `Referrer-Policy`, `X-Frame-Options DENY`, `Permissions-Policy`, `-Server`.
 - [x] `/colyseus/` și `/colyseus/health` dau 404 din afară; `/colyseus/status` e verificarea publică.
-- [ ] După instalare (cu acord): `systemd-analyze security saniuta`, header-ele reale, `/colyseus/health` 404.
+- [x] După instalare (2026-11-22): `systemd-analyze security saniuta` 1.5 OK; header-ele de mai sus prezente
+      pe `https://saniuta-la-vale.duckdns.org/`, `Server` ascuns; `/colyseus/` și `/colyseus/health` 404;
+      `/colyseus/status` 200; niciun raport CSP în consolă la un meci online.
+- [ ] `ProtectProc=invisible` e ignorat de systemd 245 (Ubuntu 20.04 pe VPS): de scos la o rulare viitoare a `setup.sh`.
