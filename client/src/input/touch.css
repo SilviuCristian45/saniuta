@@ -8,7 +8,8 @@
 }
 
 .touch-controls.hidden {
-  display: none;
+  /* Not display: none, so the minimap can measure where the buttons are before they show. */
+  visibility: hidden;
 }
 
 .touch-pad,

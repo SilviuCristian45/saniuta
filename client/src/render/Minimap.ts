@@ -5,6 +5,8 @@ import { GAME_W, HUD_DEPTH } from './layout';
 import type { Pose } from '../net/view';
 
 const WIDTH = 64;
+/** The frame around the strip reaches this far above `top` and below `bottom`. */
+export const MINIMAP_PAD = 10;
 /** Bends are drawn this many times wider than true scale, or the track would be a hair-thin line. */
 const X_STRETCH = 3;
 
@@ -25,7 +27,7 @@ export class Minimap {
     this.scale = (bottom - top) / track.endY;
     const g = (this.frame = add(scene.add.graphics().setDepth(HUD_DEPTH.panel)));
     g.fillStyle(0x141b33, 0.55);
-    g.fillRoundedRect(this.x0 - 6, top - 10, WIDTH + 12, bottom - top + 20, 10);
+    g.fillRoundedRect(this.x0 - 6, top - MINIMAP_PAD, WIDTH + 12, bottom - top + 2 * MINIMAP_PAD, 10);
     const edge = (r: number, side: number) => ({
       x: this.mapX(track.center[r]! + side * track.half[r]!),
       y: this.mapY(r * ROW_LEN),

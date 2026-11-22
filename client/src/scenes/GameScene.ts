@@ -21,7 +21,7 @@ import { COLORS, PLAYER_COLORS, hexColor } from '../render/colors';
 import { floatText, snowBurst } from '../render/fx';
 import { Hud } from '../render/Hud';
 import { DEPTH, FONT, GAME_H, GAME_W, HUD_DEPTH, LOOK_AHEAD, ZOOM_FAST, ZOOM_SLOW, px } from '../render/layout';
-import { Minimap } from '../render/Minimap';
+import { MINIMAP_PAD, Minimap } from '../render/Minimap';
 import { ResultsPanel } from '../render/ResultsPanel';
 import { SledView, toRadians } from '../render/SledView';
 import { Snowfall } from '../render/Snowfall';
@@ -169,11 +169,15 @@ export class GameScene extends Phaser.Scene {
     };
     window.addEventListener('keydown', onEsc);
     const corner = this.createCornerButtons();
+    // A phone turned, or the window resized (Phaser refits the canvas first): the touch controls moved relative to it.
+    const onResize = () => this.buildMinimap();
+    this.scale.on(Phaser.Scale.Events.RESIZE, onResize);
     if (this.data_.debug) this.debugOverlay = new DebugOverlay(this, this.addWorld, this.addHud);
     if (this.data_.tune && !this.transport.online) this.tunePanel = new TunePanel();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       window.removeEventListener('keydown', onEsc);
+      this.scale.off(Phaser.Scale.Events.RESIZE, onResize);
       corner.remove();
       this.confirm?.close();
       this.unsubscribe?.();
@@ -236,10 +240,28 @@ export class GameScene extends Phaser.Scene {
     this.trackView?.destroy();
     this.minimap?.destroy();
     this.trackView = new TrackView(this, currentTrack(state), this.addWorld, reducedEffects());
-    // The minimap stays out of the way of the "Pauză / Ieși" buttons and, on phones, the snowball button.
-    this.minimap = new Minimap(this, this.addHud, this.trackView.track, isTouch ? 125 : 70, isTouch ? GAME_H - 250 : GAME_H - 40);
+    this.buildMinimap();
     this.trails.clear();
     this.snapCamera = true;
+  }
+
+  /**
+   * The minimap strip at the right edge, below the "Pauză / Ieși" buttons. On phones it ends above
+   * the touch control on that side (snowball button, or the joystick when left-handed), measured on
+   * the page because the controls are sized in CSS pixels and the canvas is scaled.
+   */
+  private buildMinimap(): void {
+    if (!this.trackView) return;
+    this.minimap?.destroy();
+    const top = isTouch ? 125 : 70;
+    let bottom = GAME_H - 40;
+    if (this.touch) {
+      const canvas = this.game.canvas.getBoundingClientRect();
+      const controlTop = ((this.touch.rightControlTop() - canvas.top) / canvas.height) * GAME_H;
+      // The strip's frame reaches MINIMAP_PAD below `bottom`; a gap more keeps the button's whole area free.
+      bottom = Math.max(top + 120, Math.min(bottom, controlTop - MINIMAP_PAD - 14));
+    }
+    this.minimap = new Minimap(this, this.addHud, this.trackView.track, top, bottom);
   }
 
   /** The camera rides with the sled, a little ahead down the slope, zooming out with speed. */

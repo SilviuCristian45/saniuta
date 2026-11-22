@@ -99,6 +99,14 @@ export class TouchInput implements InputSource {
     if (!visible) this.releaseAll();
   }
 
+  /**
+   * Top edge (CSS px) of the control at the right edge of the screen: the snowball button, or the
+   * joystick in left-handed mode. Measured even while hidden (hiding keeps the layout).
+   */
+  rightControlTop(): number {
+    return (this.root.classList.contains('left-handed') ? this.pad : this.fireBtn).getBoundingClientRect().top;
+  }
+
   releaseAll(): void {
     this.fireQueued = false;
     this.padPointers.clear();
