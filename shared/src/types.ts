@@ -57,7 +57,10 @@ export interface PlayerState {
   bestTicks: number; // best run time this match (0 = none)
   crashes: number; // statistics (awards)
   hits: number; // snowballs that hit someone
+  hitsTaken: number; // snowballs that hit this sled
   jumps: number;
+  airTime: number; // ticks in the air, all runs of the match
+  topSpeed: number; // highest speed of the match (sub-units per tick)
   pickups: number; // snowballs collected
   // Set by the server room, outside the simulation (which never reads it): no input for IDLE_TICKS
   // while a run is played. Others see "zzz".
@@ -98,7 +101,7 @@ export type GameEvent =
   /** Two sleds shoved each other; x/y the contact point. */
   | { type: 'bump'; a: string; b: string; x: number; y: number; force: number }
   /** Overturned on a tree or a rock. */
-  | { type: 'crash'; playerId: string; x: number; y: number }
+  | { type: 'crash'; playerId: string; x: number; y: number; obstacle: number } // obstacle: OBSTACLE_TREE | OBSTACLE_ROCK
   | { type: 'jump'; playerId: string }
   | { type: 'land'; playerId: string }
   | { type: 'pickup'; playerId: string; pile: number }

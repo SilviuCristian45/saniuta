@@ -9,7 +9,7 @@ import {
 } from './constants';
 import { clamp } from './fixed';
 import { computeStandings, sortedPlayers, startRound } from './match';
-import { canCollide, collideSleds, grounded, hitObstacles, keepOnTrack, rideFinished, rideSled, tryJump } from './physics';
+import { canCollide, collideSleds, grounded, hitObstacles, keepOnTrack, rideFinished, rideSled, speedOf, tryJump } from './physics';
 import { clearBalls, pickUpSnow, throwSnowball, tickPiles, updateBalls } from './snowballs';
 import { getTrack, type Track } from './track';
 import type { GameEvent, GameState, PlayerInput, PlayerState } from './types';
@@ -110,6 +110,7 @@ export function step(state: GameState): GameEvent[] {
       pickUpSnow(state, track, p, events);
     }
     keepOnTrack(p, track);
+    if (!p.finished) countStats(p);
     if (!p.finished && p.y >= track.finishY) crossed.push(p);
   }
   // Crossing on the same tick: the one further past the line was faster.
@@ -129,6 +130,12 @@ export function step(state: GameState): GameEvent[] {
     endRun(state, events);
   }
   return events;
+}
+
+/** The highest speed of the match, for "Fulgerul" (time in the air is counted by rideSled). */
+function countStats(p: PlayerState): void {
+  const speed = speedOf(p);
+  if (speed > p.topSpeed) p.topSpeed = speed;
 }
 
 /** Points for a place reached without finishing: half of the place's points, rounded down, at least 1. */

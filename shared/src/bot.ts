@@ -40,6 +40,8 @@ export interface BotParams {
   deepCost: number;
   rampBonus: number;
   pileBonus: number;
+  /** Line cost for running into a slower sled ahead (0: does not look out for them). */
+  sledCost: number;
   /** Knows a jump clears what is behind a ramp. */
   jumpsOver: boolean;
   /** Brakes when no line is clear. */
@@ -59,32 +61,34 @@ export interface BotParams {
 export const BOT_PARAMS: Record<number, BotParams> = {
   [BOT_EASY]: {
     interval: 6,
-    lookahead: 140 * FP,
-    lookTicks: 9,
+    lookahead: 170 * FP,
+    lookTicks: 12,
     lanes: 7,
     clearance: 4 * FP,
     iceCost: 0,
     deepCost: 80,
     rampBonus: 0,
     pileBonus: 40,
+    sledCost: 0,
     jumpsOver: false,
     brakes: false,
     throwChance: 15,
     throwRange: 160 * FP,
     throwAlign: 40,
-    mistake: 10,
+    mistake: 7,
     aimNoise: 35,
   },
   [BOT_MEDIUM]: {
     interval: 5,
     lookahead: 150 * FP,
-    lookTicks: 12,
+    lookTicks: 15,
     lanes: 7,
     clearance: 6 * FP,
     iceCost: 150,
     deepCost: 400,
     rampBonus: 80,
     pileBonus: 120,
+    sledCost: 300,
     jumpsOver: true,
     brakes: false,
     throwChance: 40,
@@ -103,6 +107,7 @@ export const BOT_PARAMS: Record<number, BotParams> = {
     deepCost: 700,
     rampBonus: 200,
     pileBonus: 250,
+    sledCost: 600,
     jumpsOver: true,
     brakes: true,
     throwChance: 80,
@@ -130,6 +135,14 @@ const MIN_FULL_STEER_ERROR = 24;
 const TURN_TICKS = 5;
 /** A line through an obstacle costs this much (more than anything else can add up to). */
 const BLOCKED = 10000;
+/**
+ * Each of three points of a line past the snowbank (a line that cuts a bend). The bank only bounces
+ * the sled back and costs speed, while an obstacle overturns it: three of these stay below one
+ * obstacle, so with no clean line around a tight bend the bot takes the bank, never the tree.
+ */
+const SNOWBANK = 3000;
+/** A slower sled ahead is looked at where it will be when this one catches up, at most this many ticks on. */
+const CATCH_UP_TICKS = 40;
 
 function paramsFor(p: PlayerState): BotParams {
   return BOT_PARAMS[p.botLevel] ?? BOT_PARAMS[BOT_MEDIUM]!;
@@ -205,7 +218,7 @@ function lineCost(state: GameState, track: Track, me: PlayerState, params: BotPa
   for (let q = 1; q <= 3; q++) {
     const y = path.py + idiv((ty - path.py) * q, 4);
     const x = path.px + idiv((tx - path.px) * q, 4);
-    if (Math.abs(x - centerAt(track, y)) > halfWidthAt(track, y) - SLED_RADIUS) cost += BLOCKED;
+    if (Math.abs(x - centerAt(track, y)) > halfWidthAt(track, y) - SLED_RADIUS) cost += SNOWBANK;
   }
   for (const q of [2, 4]) {
     const s = surfaceAt(track, path.px + idiv((tx - path.px) * q, 4), path.py + idiv((ty - path.py) * q, 4));
@@ -221,6 +234,19 @@ function lineCost(state: GameState, track: Track, me: PlayerState, params: BotPa
         cost -= params.pileBonus;
         break;
       }
+    }
+  }
+  // A slower sled ahead on the line: bumping into it costs both of them speed (in a bunched field
+  // that adds up to seconds), so go round it, where it will be by the time this sled gets there.
+  if (params.sledCost > 0) {
+    const reach = 2 * SLED_RADIUS + params.clearance;
+    for (const o of sortedPlayers(state)) {
+      if (o.id === me.id || !o.racing || o.finished || !grounded(o)) continue;
+      const dy = o.y - me.y;
+      const closing = me.vy - o.vy;
+      if (dy <= 0 || dy > ty - me.y || closing <= 0) continue;
+      const k = Math.min(idiv(dy, closing), CATCH_UP_TICKS);
+      if (pathDist2(path, o.x + o.vx * k, o.y + o.vy * k) < reach * reach) cost += params.sledCost;
     }
   }
   // Swerving costs speed: prefer lines close to where the sled is going anyway.
@@ -258,7 +284,8 @@ export function botThink(state: GameState, id: string): BotThought | null {
   const roll = (salt: number) => percent(state.rng, state.round, decision, me.slot, salt);
   const speed = speedOf(me);
 
-  // Look far ahead; where every far line is blocked (a tight bend), look half as far.
+  // Look far ahead; where every far line is blocked (a tight bend), look half as far, then a quarter
+  // (the next gap only: around a tight bend no straight line reaches far without cutting the bank).
   const far = params.lookahead + speed * params.lookTicks;
   let bestCost = Infinity;
   let tx = me.x;
@@ -266,7 +293,7 @@ export function botThink(state: GameState, id: string): BotThought | null {
   const slide = me.airTicks > 0 ? me.airTicks : TURN_TICKS;
   const px = me.x + me.vx * slide;
   const py = me.y + me.vy * slide;
-  for (const look of [far, idiv(far, 2)]) {
+  for (const look of [far, idiv(far, 2), idiv(far, 4)]) {
     const y = Math.min(me.y + look, track.endY);
     const c = centerAt(track, y);
     const reach = halfWidthAt(track, y) - 2 * SLED_RADIUS;

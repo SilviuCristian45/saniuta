@@ -25,6 +25,7 @@ export type Route =
   | { to: 'intro'; data: MenuData }
   | { to: 'name'; data: NameData }
   | { to: 'menu'; data: MenuData }
+  | { to: 'leaderboard' }
   | { to: 'lobby'; transport: GameTransport }
   | { to: 'game'; transport: GameTransport };
 

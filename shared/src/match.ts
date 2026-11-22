@@ -148,7 +148,10 @@ export function addPlayer(state: GameState, id: string, name: string, isBot = fa
     bestTicks: 0,
     crashes: 0,
     hits: 0,
+    hitsTaken: 0,
     jumps: 0,
+    airTime: 0,
+    topSpeed: 0,
     pickups: 0,
     idle: false,
   };
@@ -265,7 +268,10 @@ export function startMatch(state: GameState, byId: string): boolean {
     p.bestTicks = 0;
     p.crashes = 0;
     p.hits = 0;
+    p.hitsTaken = 0;
     p.jumps = 0;
+    p.airTime = 0;
+    p.topSpeed = 0;
     p.pickups = 0;
   }
   state.round = 1;

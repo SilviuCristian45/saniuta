@@ -62,7 +62,10 @@ export const PLAYER_STATE_KEYS = [
   'bestTicks',
   'crashes',
   'hits',
+  'hitsTaken',
   'jumps',
+  'airTime',
+  'topSpeed',
   'pickups',
   'idle',
 ] as const satisfies readonly (keyof PlayerState)[];

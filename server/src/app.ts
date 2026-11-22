@@ -1,9 +1,10 @@
 import { createServer as createHttpServer } from 'node:http';
 import { createEndpoint, createRouter, defineRoom, defineServer, matchMaker } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
-import { isValidRoomCode, normalizeRoomCode, ROOM_NAME } from '@saniuta/shared';
+import { isValidRoomCode, normalizeRoomCode, ROOM_NAME, type LeaderboardResponse } from '@saniuta/shared';
 import { MAX_ROOMS } from './config';
 import { DEFAULT_GUARD_OPTIONS, installGuard, isAllowedOrigin, type Guard, type GuardOptions } from './guard';
+import { currentLeaderboard } from './leaderboard';
 import { roomCount, roomStatus } from './registry';
 import { SaniutaRoom } from './SaniutaRoom';
 
@@ -18,6 +19,19 @@ const health = createEndpoint('/health', { method: 'GET' }, async (ctx) =>
 const status = createEndpoint('/status', { method: 'GET' }, async (ctx) => {
   ctx.setHeader('Cache-Control', 'no-store');
   return ctx.json({ ok: true });
+});
+
+/** The all-time top of every fixed track (cached on the server, and briefly by browsers and proxies). */
+const leaderboard = createEndpoint('/leaderboard', { method: 'GET' }, async (ctx) => {
+  ctx.setHeader('Cache-Control', 'public, max-age=30');
+  const board = currentLeaderboard();
+  let body: LeaderboardResponse = { available: false, tracks: {} };
+  try {
+    if (board) body = { available: true, tracks: board.top() };
+  } catch (err) {
+    console.error('Clasament: nu pot citi topul:', err);
+  }
+  return ctx.json(body);
 });
 
 /** Why a join by code failed: Colyseus reports both a full and a running room as "locked". */
@@ -51,7 +65,7 @@ export function createServer(guardOptions: GuardOptions = DEFAULT_GUARD_OPTIONS)
   const colyseus = defineServer({
     transport: new WebSocketTransport({ server: http }),
     rooms: { [ROOM_NAME]: defineRoom(SaniutaRoom) },
-    routes: createRouter({ health, status, roomInfo }),
+    routes: createRouter({ health, status, roomInfo, leaderboard }),
     greet: false,
   });
   return {

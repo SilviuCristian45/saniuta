@@ -8,6 +8,7 @@ import { CodeInput } from '../ui/CodeInput';
 import { openDialog } from '../ui/dialog';
 import { el } from '../ui/el';
 import { button, setButtonStyle, title } from '../ui/html';
+import { muteButton } from '../ui/muteButton';
 import { openSettings } from '../ui/settingsDialog';
 import type { MenuData, ScreenHost } from './host';
 
@@ -32,7 +33,11 @@ export class MenuScreen {
       el('div', { class: 'cards' }, [this.createCreateCard(), this.createJoinCard()]),
       this.status,
       // One row, so a phone held sideways sees all of it.
-      el('div', { class: 'menu-footer' }, [this.offlineButton, isTouch ? button('Setări', () => openSettings(), 'secondary', 'small') : null]),
+      el('div', { class: 'menu-footer' }, [
+        onlineEnabled ? button('Clasament', () => this.openLeaderboard(), 'secondary', 'small') : null,
+        this.offlineButton,
+        isTouch ? button('Setări', () => openSettings(), 'secondary', 'small') : null,
+      ]),
       isTouch ? null : this.cornerToggle(),
     ]);
 
@@ -76,7 +81,7 @@ export class MenuScreen {
     );
   }
 
-  /** Desktop: "Efecte reduse" in the corner (touch devices have it under "Setări"). */
+  /** Desktop: "Sunet" and "Efecte reduse" in the corner (touch devices have them under "Setări"). */
   private cornerToggle(): HTMLElement {
     const label = () => `Efecte reduse: ${getSetting('reducedEffects') ? 'da' : 'nu'}`;
     const node = button(
@@ -88,7 +93,7 @@ export class MenuScreen {
       'secondary',
       'small',
     );
-    return el('div', { class: 'corner-toggle' }, [node]);
+    return el('div', { class: 'corner-toggle' }, [muteButton(this.host.life), node]);
   }
 
   /** "Joci ca {nume} · schimbă" */
@@ -135,6 +140,10 @@ export class MenuScreen {
 
   private onCreateRoom(): void {
     void this.connect(createRoom(this.playerName()), 'Se creează jocul...');
+  }
+
+  private openLeaderboard(): void {
+    if (!this.busy) this.host.go({ to: 'leaderboard' });
   }
 
   private onPlayOffline(): void {

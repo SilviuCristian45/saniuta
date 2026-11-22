@@ -3,6 +3,7 @@ import type { GameTransport } from '../net/GameTransport';
 import { ensureTextures } from '../render/textures';
 import type { MenuData, NameData } from '../screens/host';
 import { showIntro } from '../screens/intro';
+import { showLeaderboard } from '../screens/leaderboard';
 import { LobbyScreen } from '../screens/lobby';
 import { MenuScreen } from '../screens/menu';
 import { showName } from '../screens/name';
@@ -65,6 +66,19 @@ export class MenuScene extends Phaser.Scene {
     ensureTextures(this);
     drawBackdrop(this);
     new MenuScreen(phaserHost(this), this.opts);
+  }
+}
+
+/** The all-time best times. */
+export class LeaderboardScene extends Phaser.Scene {
+  constructor() {
+    super('leaderboard');
+  }
+
+  create(): void {
+    ensureTextures(this);
+    drawBackdrop(this);
+    showLeaderboard(phaserHost(this));
   }
 }
 

@@ -30,6 +30,28 @@ describe('bots', () => {
     expect(state.players.b!.finishTicks).toBeLessThan(110 * 30);
   });
 
+  it('steers around a slower sled ahead on its line (Greu and Mediu), Ușor does not look out for it', () => {
+    // Just past the start (kept clear of obstacles), both sleds in the middle, the other one much slower.
+    const thinkWith = (level: number, slowAhead: boolean) => {
+      const state = makeRace([
+        { id: 'b', isBot: true, botLevel: level },
+        { id: 's', isBot: true, botLevel: BOT_EASY },
+      ]);
+      const track = currentTrack(state);
+      const y = track.startY + px(30);
+      Object.assign(state.players.b!, { x: 0, y, vx: 0, vy: px(9), heading: DOWNHILL });
+      Object.assign(state.players.s!, slowAhead ? { x: 0, y: y + px(160), vx: 0, vy: px(2) } : { x: px(4000), y: y - px(400), racing: false });
+      return botThink(state, 'b')!;
+    };
+    for (const level of [BOT_HARD, BOT_MEDIUM]) {
+      const alone = thinkWith(level, false);
+      const behind = thinkWith(level, true);
+      // Alone it goes (nearly) straight; behind the slow sled its line moves well to one side.
+      expect(Math.abs(behind.targetX - alone.targetX)).toBeGreaterThan(px(30));
+    }
+    expect(thinkWith(BOT_EASY, true).targetX).toBe(thinkWith(BOT_EASY, false).targetX);
+  });
+
   it('thinking is pure: it changes neither the state nor the RNG', () => {
     const state = makeRace([{ id: 'h' }, { id: 'b', isBot: true, botLevel: BOT_MEDIUM }]);
     for (let i = 0; i < 200; i++) runTick(state, []);

@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import {
   COUNTDOWN_TICKS,
-  FP,
   MAX_SNOWBALLS,
   TICK_RATE,
   computeStandings,
@@ -9,35 +8,16 @@ import {
   lastCallSeconds,
   raceTicks,
   speedOf,
-  ticksToMs,
   trackName,
   type GameState,
 } from '@saniuta/shared';
 import { COLORS } from './colors';
+import { formatTime, kmh, ordinal } from './format';
 import { FONT, GAME_W, HUD_DEPTH } from './layout';
 import { TEX } from './textures';
 
 /** "HAI!" stays a moment after the countdown. */
 const GO_SHOWN_TICKS = Math.round(0.8 * TICK_RATE);
-
-/** m:ss.d for a run time in ticks. */
-export function formatTime(ticks: number): string {
-  const ms = ticksToMs(ticks);
-  const m = Math.floor(ms / 60000);
-  const s = Math.floor((ms % 60000) / 1000);
-  const d = Math.floor((ms % 1000) / 100);
-  return `${m}:${String(s).padStart(2, '0')}.${d}`;
-}
-
-/** Sub-units per tick to a fun km/h (450 px/s reads as ~65 km/h). */
-export function kmh(speed: number): number {
-  return Math.round(((speed / FP) * TICK_RATE * 0.145));
-}
-
-/** "1-a", "al 2-lea", ... as in "Ai sosit al 2-lea". */
-export function ordinal(place: number): string {
-  return place === 1 ? 'primul' : `al ${place}-lea`;
-}
 
 type AddToHud = <T extends Phaser.GameObjects.GameObject>(obj: T) => T;
 

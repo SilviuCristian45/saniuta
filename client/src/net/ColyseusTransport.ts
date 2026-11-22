@@ -6,6 +6,7 @@ import {
   FP,
   MSG_EVENTS,
   MSG_PONG,
+  MSG_RECORDS,
   Predictor,
   rebuildState,
   SLED_RADIUS,
@@ -13,6 +14,8 @@ import {
   type ClientMessage,
   type GameEvent,
   type GameState,
+  type MatchRecords,
+  type NewRecord,
   type Pong,
   type RemoteState,
   type TickEvents,
@@ -36,7 +39,11 @@ import { ballsOf, blendBalls, isRoundReset, lerpPose, poseOf, type BallSnap, typ
 //   network jitter.
 // - Events play when the drawn state reaches their tick; those about the own sled as soon as they arrive.
 
-type Incoming = { kind: 'state'; state: GameState } | { kind: 'events'; msg: TickEvents } | { kind: 'pong'; t: number };
+type Incoming =
+  | { kind: 'state'; state: GameState }
+  | { kind: 'events'; msg: TickEvents }
+  | { kind: 'pong'; t: number }
+  | { kind: 'records'; records: NewRecord[] };
 
 /** Other sleds are drawn this many ticks (100 ms) behind the newest server state. */
 const INTERP_TICKS = 3;
@@ -102,6 +109,7 @@ export class ColyseusTransport implements GameTransport {
   private ballsPrev: BallSnap[] = [];
   private ballsCur: BallSnap[] = [];
   private bigCorrections: number[] = [];
+  private records: NewRecord[] = [];
   private pingMs = 0;
   private nextPingAt = 0;
   private readonly queued: { tick: number; at: number; events: GameEvent[]; ownDone: boolean }[] = [];
@@ -135,6 +143,7 @@ export class ColyseusTransport implements GameTransport {
     room.onStateChange(() => this.receive({ kind: 'state', state: rebuildState(room.state as unknown as RemoteState) }));
     room.onMessage(MSG_EVENTS, (msg: TickEvents) => this.receive({ kind: 'events', msg }));
     room.onMessage(MSG_PONG, (msg: Pong) => this.receive({ kind: 'pong', t: msg.t }));
+    room.onMessage(MSG_RECORDS, (msg: MatchRecords) => this.receive({ kind: 'records', records: Array.isArray(msg?.records) ? msg.records : [] }));
     room.onDrop(() => {
       this.status = 'reconnecting';
     });
@@ -214,6 +223,10 @@ export class ColyseusTransport implements GameTransport {
     return this.currentView;
   }
 
+  newRecords(): readonly NewRecord[] {
+    return this.records;
+  }
+
   netStats(): NetStats {
     return {
       pingMs: Math.round(this.pingMs),
@@ -270,6 +283,7 @@ export class ColyseusTransport implements GameTransport {
   private handle(item: Incoming, now: number): void {
     if (item.kind === 'state') this.onServerState(item.state, now);
     else if (item.kind === 'events') this.queued.push({ tick: item.msg.tick, at: now, events: item.msg.events, ownDone: false });
+    else if (item.kind === 'records') this.records = item.records;
     else if (Number.isFinite(item.t)) {
       const sample = now - item.t;
       this.pingMs = this.pingMs > 0 ? this.pingMs * 0.7 + sample * 0.3 : sample;
@@ -282,6 +296,8 @@ export class ColyseusTransport implements GameTransport {
     else this.timeline.push(state);
     if (this.timeline.length > TIMELINE_LENGTH) this.timeline.shift();
     this.latest = state;
+    // Records belong to the run just finished; the next run (or the lobby) starts without them.
+    if (state.phase === 'playing' || state.phase === 'lobby') this.records = [];
 
     const beforeState = this.predictor.state;
     const before = this.ownPose();

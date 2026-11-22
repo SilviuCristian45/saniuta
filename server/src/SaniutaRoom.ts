@@ -5,6 +5,7 @@ import {
   addPlayer,
   backToLobby,
   CLOSE_LOBBY_IDLE,
+  COUNTDOWN_TICKS,
   createGameState,
   ERR_IN_PROGRESS,
   ERR_ROOM_FULL,
@@ -13,10 +14,12 @@ import {
   generateRoomCode,
   IDLE_TICKS,
   InputQueue,
+  LEADERBOARD_MIN_ACTIVE_PERCENT,
   leavePlayer,
   MAX_PLAYERS,
   MSG_EVENTS,
   MSG_PONG,
+  MSG_RECORDS,
   parseInput,
   removeBot,
   ROOM_CODE_ALPHABET,
@@ -31,12 +34,15 @@ import {
   TICK_RATE,
   type GameEvent,
   type GameState,
+  type MatchRecords,
   type Pong,
   type RoomStatus,
   type TickEvents,
 } from '@saniuta/shared';
 import { IP_HEADER } from './clientIp';
-import { LOBBY_IDLE_MINUTES, MAX_MESSAGES_PER_SECOND, MAX_ROOMS, MAX_ROOMS_PER_IP, RECONNECT_SECONDS } from './config';
+import { LEADERBOARD_RUNS_PER_IP_PER_DAY, LOBBY_IDLE_MINUTES, MAX_MESSAGES_PER_SECOND, MAX_ROOMS, MAX_ROOMS_PER_IP, RECONNECT_SECONDS } from './config';
+import { currentLeaderboard, runResult } from './leaderboard';
+import { DailyQuota } from './limits';
 import { mirror } from './mirror';
 import { isCodeTaken, registerRoom, roomCount, roomsOwnedBy, unregisterRoom } from './registry';
 import { RoomState } from './schema';
@@ -49,6 +55,9 @@ interface JoinOptions {
   /** Set by onAuth from the guard's IP_HEADER (never what the client sent): the limit key, '' outside Caddy. */
   [CLIENT_IP]?: unknown;
 }
+
+/** Leaderboard runs saved per address today, across all rooms. */
+export const savedRunsToday = new DailyQuota(LEADERBOARD_RUNS_PER_IP_PER_DAY);
 
 /** The limit key onAuth put in the options. */
 function clientIpOf(options: JoinOptions | undefined): string {
@@ -72,6 +81,10 @@ export class SaniutaRoom extends Room<{ state: RoomState }> {
   private lobbyTimer: Delayed | undefined;
   /** The tick each player's last input arrived on (for idle). */
   private readonly lastInputTick = new Map<string, number>();
+  /** Each player's limit key ('' outside Caddy), for the leaderboard quota. */
+  private readonly clientIps = new Map<string, string>();
+  /** Per human, this run: ticks riding after the countdown (not finished), and of those the ones with input held. */
+  private readonly activity = new Map<string, { riding: number; driving: number }>();
 
   /**
    * Runs for every create/join request, before the room exists for a create. Only stamps the options
@@ -177,6 +190,7 @@ export class SaniutaRoom extends Room<{ state: RoomState }> {
       if (result.reason === 'in-progress') throw new ServerError(ERR_IN_PROGRESS, 'Meciul e în desfășurare');
       throw new ServerError(ERR_ROOM_FULL, 'Jocul e plin');
     }
+    this.clientIps.set(client.sessionId, clientIpOf(options));
     mirror(this.game, this.state);
   }
 
@@ -198,6 +212,7 @@ export class SaniutaRoom extends Room<{ state: RoomState }> {
     this.pendingEvents.push(...leavePlayer(this.game, client.sessionId));
     this.inputQueue.remove(client.sessionId);
     this.lastInputTick.delete(client.sessionId);
+    this.clientIps.delete(client.sessionId);
   }
 
   onDispose(): void {
@@ -216,24 +231,65 @@ export class SaniutaRoom extends Room<{ state: RoomState }> {
     // Inputs only count while a run is being played; nothing moves in the lobby.
     if (this.game.phase !== 'playing') this.inputQueue.clear();
     if (this.game.phase !== 'lobby') events.push(...runTick(this.game, this.inputQueue.take()));
-    this.markIdle();
+    if (events.some((e) => e.type === 'roundStart')) this.activity.clear();
+    this.trackActivity();
     mirror(this.game, this.state);
     // The patch first: clients hold a tick's events until their state has reached it.
     this.broadcastPatch();
     if (events.length > 0) this.broadcast(MSG_EVENTS, { tick: this.game.tick, events } satisfies TickEvents);
+    // A run ends once (from a tick, or from a skipped run sent with this tick); the state still holds its times.
+    if (events.some((e) => e.type === 'roundEnd')) this.saveRun();
   }
 
   /**
-   * Who is idle: still riding, but no input for IDLE_TICKS (a hidden tab, a dropped connection).
-   * Room-side bookkeeping, shown as "zzz": the simulation never reads PlayerState.idle.
+   * Who is idle: still riding, but no input for IDLE_TICKS (a hidden tab, a dropped connection), and
+   * how much each human really rode this run, for the leaderboard's "played for real" rule. Room-side
+   * bookkeeping: the simulation never reads PlayerState.idle (others see "zzz").
    */
-  private markIdle(): void {
+  private trackActivity(): void {
     const game = this.game;
+    const playing = game.phase === 'playing';
     // Counted from the run's start at the latest, so nobody shows idle in a run's first two seconds.
     const roundStart = game.tick - game.roundTick;
     for (const p of Object.values(game.players)) {
-      p.idle =
-        game.phase === 'playing' && p.racing && !p.finished && !p.isBot && !p.left && game.tick - Math.max(this.lastInputTick.get(p.id) ?? 0, roundStart) > IDLE_TICKS;
+      const riding = playing && p.racing && !p.finished && !p.isBot && !p.left;
+      const idle = riding && game.tick - Math.max(this.lastInputTick.get(p.id) ?? 0, roundStart) > IDLE_TICKS;
+      p.idle = idle;
+      if (!riding || game.roundTick <= COUNTDOWN_TICKS) continue;
+      let a = this.activity.get(p.id);
+      if (!a) this.activity.set(p.id, (a = { riding: 0, driving: 0 }));
+      a.riding++;
+      if (!idle && (p.steer !== 0 || p.throttle !== 0)) a.driving++;
+    }
+  }
+
+  /** Whether a human played this run for real (input held in LEADERBOARD_MIN_ACTIVE_PERCENT of their riding ticks). */
+  playedForReal(playerId: string): boolean {
+    const a = this.activity.get(playerId);
+    return !!a && a.riding > 0 && a.driving * 100 >= a.riding * LEADERBOARD_MIN_ACTIVE_PERCENT;
+  }
+
+  /** Writes a counted run to the all-time leaderboard and announces new records. A database error is only logged. */
+  private saveRun(): void {
+    const board = currentLeaderboard();
+    if (!board) return;
+    const now = new Date();
+    const result = runResult(this.game, now, (id) => this.playedForReal(id));
+    if (!result) return;
+    // One address saves at most LEADERBOARD_RUNS_PER_IP_PER_DAY runs a day (one person with several
+    // tabs); times from an address past it are left out, the others still count.
+    const ipOf = (playerId: string) => this.clientIps.get(playerId) ?? '';
+    const times = result.times.filter((t) => !ipOf(t.playerId) || savedRunsToday.has(ipOf(t.playerId), now));
+    if (times.length < result.times.length) {
+      console.warn(`Clasament: ${result.times.length - times.length} timp(i) din ${this.roomId} lăsați afară (limita zilnică per adresă).`);
+    }
+    if (times.length === 0) return;
+    try {
+      const records = board.record({ ...result, times });
+      for (const ip of new Set(times.map((t) => ipOf(t.playerId)).filter(Boolean))) savedRunsToday.use(ip, now);
+      if (records.length > 0) this.broadcast(MSG_RECORDS, { records } satisfies MatchRecords);
+    } catch (err) {
+      console.error(`Clasament: manșa din ${this.roomId} nu s-a putut salva:`, err);
     }
   }
 }

@@ -1,13 +1,21 @@
 import Phaser from 'phaser';
 import {
   DOWNHILL,
+  OBSTACLE_ROCK,
+  SURFACE_ICE,
   TUNING,
   applyGameTuning,
   currentTrack,
   speedOf,
+  surfaceAt,
   type GameEvent,
   type GameState,
+  type NewRecord,
+  type PlayerState,
 } from '@saniuta/shared';
+import { RideSound } from '../audio/ride';
+import { playSfx } from '../audio/sfx';
+import { toggleMute } from '../audio/sound';
 import { DebugOverlay } from '../debug/DebugOverlay';
 import { savedTuning, TunePanel } from '../debug/TunePanel';
 import { isTouch } from '../device';
@@ -18,10 +26,11 @@ import { TouchInput } from '../input/TouchInput';
 import type { GameTransport } from '../net/GameTransport';
 import { EMPTY_VIEW, type RenderView } from '../net/view';
 import { COLORS, PLAYER_COLORS, hexColor } from '../render/colors';
-import { floatText, snowBurst } from '../render/fx';
+import { floatText, iceSparks, snowBurst, turnSpray } from '../render/fx';
 import { Hud } from '../render/Hud';
 import { DEPTH, FONT, GAME_H, GAME_W, HUD_DEPTH, LOOK_AHEAD, ZOOM_FAST, ZOOM_SLOW, px } from '../render/layout';
 import { MINIMAP_PAD, Minimap } from '../render/Minimap';
+import { Podium } from '../render/Podium';
 import { ResultsPanel } from '../render/ResultsPanel';
 import { SledView, toRadians } from '../render/SledView';
 import { Snowfall } from '../render/Snowfall';
@@ -35,7 +44,9 @@ import { sceneLifetime, useScaleMode } from '../ui/dom';
 import { el } from '../ui/el';
 import { button } from '../ui/html';
 import { fullscreenOnFirstTap } from '../ui/orientation';
+import { muteButton } from '../ui/muteButton';
 import { notifyPresence } from '../ui/presence';
+import { recordsLine } from '../ui/records';
 import type { LobbySceneData } from './menuScenes';
 
 export interface GameSceneData {
@@ -68,6 +79,10 @@ export class GameScene extends Phaser.Scene {
   private snowfall!: Snowfall;
   private hud!: Hud;
   private results!: ResultsPanel;
+  private podium?: Podium;
+  private readonly ride = new RideSound();
+  /** When each sled last threw up snow in a turn or sparkled on ice (ms), so the effects stay light. */
+  private readonly lastFx = new Map<string, number>();
   private debugOverlay?: DebugOverlay;
   private tunePanel?: TunePanel;
   private pauseText!: Phaser.GameObjects.Text;
@@ -101,6 +116,7 @@ export class GameScene extends Phaser.Scene {
     this.tunePanel = undefined;
     this.snapCamera = true;
     this.confirm = undefined;
+    this.podium = undefined;
     this.confirmPaused = false;
     this.pauseButton = undefined;
   }
@@ -139,8 +155,8 @@ export class GameScene extends Phaser.Scene {
 
     this.trails = new Trails(this, this.addWorld, reduced ? 90 : 320);
     this.snowfall = new Snowfall(this, this.addHud, reduced ? 30 : 110);
-    this.hud = new Hud(this, this.addHud, () => undefined);
-    this.results = new ResultsPanel(this, this.addHud, () => this.finishedFooter(), () => this.onContinue());
+    this.hud = new Hud(this, this.addHud, (label) => playSfx(label === 'HAI!' ? 'hai' : 'numaratoare'));
+    this.results = new ResultsPanel(this, this.addHud, () => this.onContinue());
     this.pauseText = this.addHud(
       this.add
         .text(GAME_W / 2, GAME_H / 2, '', { fontFamily: FONT, fontSize: '40px', fontStyle: 'bold', color: COLORS.gold, stroke: COLORS.outline, strokeThickness: 8, align: 'center' })
@@ -158,6 +174,7 @@ export class GameScene extends Phaser.Scene {
 
     this.unsubscribe = this.transport.onEvents((events) => this.handleEvents(events));
     this.game.events.on(Phaser.Core.Events.HIDDEN, this.onHidden, this);
+    this.input.keyboard!.on('keydown-M', () => toggleMute());
     this.input.keyboard!.on('keydown-P', () => {
       if (!this.confirm) this.togglePause();
     });
@@ -181,6 +198,7 @@ export class GameScene extends Phaser.Scene {
     if (this.data_.tune && !this.transport.online) this.tunePanel = new TunePanel();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.ride.stop();
       window.removeEventListener('keydown', onEsc);
       this.scale.off(Phaser.Scale.Events.RESIZE, onResize);
       corner.remove();
@@ -191,6 +209,7 @@ export class GameScene extends Phaser.Scene {
       this.input.keyboard!.clearCaptures();
       this.tunePanel?.destroy();
       this.results.destroy();
+      this.podium?.destroy();
       this.trackView?.destroy();
       for (const sled of this.sleds.values()) sled.destroy();
       this.game.events.off(Phaser.Core.Events.HIDDEN, this.onHidden, this);
@@ -229,12 +248,15 @@ export class GameScene extends Phaser.Scene {
     const worldView = this.cameras.main.worldView;
     this.trackView?.update(worldView, state, time);
     this.syncSleds(state, time);
+    this.syncRideSound(state);
     this.syncBalls();
     this.trails.draw(worldView);
     this.snowfall.update(delta, time, this.cameras.main.scrollX, this.cameras.main.scrollY);
     this.minimap?.update(state, this.view.poses, this.transport.playerId);
     this.hud.update(state, this.transport.playerId);
-    this.results.update(state, this.transport.playerId);
+    const records = this.transport.newRecords?.() ?? [];
+    this.results.update(state, this.transport.playerId, recordsLine(records, this.transport.playerId));
+    this.syncPodium(state, records);
     this.pauseText.setText(this.transport.isPaused() ? `Pauză\n${isTouch ? '' : 'P = continuă'}` : '');
     this.debugOverlay?.update(state, this.transport.playerId, this.game.loop.actualFps, this.view.poses, this.transport.netStats?.());
   }
@@ -306,6 +328,7 @@ export class GameScene extends Phaser.Scene {
       const y = px(pose.y);
       const angle = toRadians(state.phase === 'lobby' ? DOWNHILL : pose.heading);
       sled.setPose(x, y, angle, p, time);
+      if (state.phase === 'playing') this.rideFx(p, x, y, angle, time);
       if (p.airTicks > 0 || p.crashTicks > 0 || p.finished) this.trails.lift(p.id);
       else if (state.phase === 'playing') this.trails.extend(p.id, x, y, angle);
     }
@@ -334,6 +357,50 @@ export class GameScene extends Phaser.Scene {
     return pose ? { x: px(pose.x), y: px(pose.y) } : undefined;
   }
 
+  /** Full for this player's own sled, fading with the distance on screen for the others. */
+  private volumeAt(x: number, y: number, playerId: string): number {
+    if (playerId === this.transport.playerId) return 1;
+    const mine = this.posOf(this.transport.playerId);
+    if (!mine) return 0.5;
+    return Math.max(0, 1 - Math.hypot(x - mine.x, y - mine.y) / 700) * 0.7;
+  }
+
+  /** The runners and the wind for this player's sled, only while it rides. */
+  private syncRideSound(state: Readonly<GameState>): void {
+    const me = state.players[this.transport.playerId];
+    const riding = state.phase === 'playing' && !!me?.racing && !me.finished && !this.transport.isPaused() && !!this.trackView;
+    if (!riding || !me || !this.trackView) {
+      this.ride.update(null);
+      return;
+    }
+    this.ride.update({
+      speed: speedOf(me) / TUNING.maxSpeed,
+      surface: surfaceAt(this.trackView.track, me.x, me.y),
+      grounded: me.airTicks === 0 && me.crashTicks === 0,
+    });
+  }
+
+  /**
+   * Small touches while riding: snow thrown out of a hard turn at speed (to the outside of the turn),
+   * glints under a sled sliding fast on ice. Rationed per sled, fewer with "Efecte reduse".
+   */
+  private rideFx(p: Readonly<PlayerState>, x: number, y: number, angle: number, time: number): void {
+    if (!this.trackView || p.finished || p.airTicks > 0 || p.crashTicks > 0) return;
+    const reduced = reducedEffects();
+    const every = reduced ? 260 : 90;
+    if (time - (this.lastFx.get(p.id) ?? -Infinity) < every) return;
+    const speed = speedOf(p) / TUNING.maxSpeed;
+    if (Math.abs(p.steer) >= 70 && speed > 0.4) {
+      this.lastFx.set(p.id, time);
+      // Steering right (steer > 0) turns toward +x: the snow flies out to the left of the heading.
+      const out = angle + (p.steer > 0 ? Math.PI / 2 : -Math.PI / 2);
+      turnSpray(this, this.addWorld, x - Math.cos(angle) * 10, y - Math.sin(angle) * 10, out, reduced ? 2 : 4);
+    } else if (speed > 0.3 && surfaceAt(this.trackView.track, p.x, p.y) === SURFACE_ICE) {
+      this.lastFx.set(p.id, time);
+      iceSparks(this, this.addWorld, x, y, reduced ? 1 : 3);
+    }
+  }
+
   private handleEvents(events: GameEvent[]): void {
     const me = this.transport.playerId;
     const state = this.transport.getState();
@@ -343,19 +410,28 @@ export class GameScene extends Phaser.Scene {
     for (const e of events) {
       if (e.type === 'crash') {
         snowBurst(this, this.addWorld, px(e.x), px(e.y), reducedEffects() ? 5 : 12, 40);
+        playSfx(e.obstacle === OBSTACLE_ROCK ? 'piatra' : 'brad', this.volumeAt(px(e.x), px(e.y), e.playerId));
         if (e.playerId === me) {
           shake(220, 0.008);
           vibrate(120);
         }
+      } else if (e.type === 'jump') {
+        const pos = this.posOf(e.playerId);
+        if (pos) playSfx('saritura', this.volumeAt(pos.x, pos.y, e.playerId));
+      } else if (e.type === 'throw') {
+        const pos = this.posOf(e.playerId);
+        if (pos) playSfx('aruncare', this.volumeAt(pos.x, pos.y, e.playerId));
       } else if (e.type === 'land') {
         const pos = this.posOf(e.playerId);
         if (pos) snowBurst(this, this.addWorld, pos.x, pos.y, reducedEffects() ? 3 : 7, 26);
+        if (pos) playSfx('aterizare', this.volumeAt(pos.x, pos.y, e.playerId));
         if (e.playerId === me) vibrate(30);
       } else if (e.type === 'pickup') {
         const pos = this.posOf(e.playerId);
         if (pos && e.playerId === me) floatText(this, this.addWorld, pos.x, pos.y - 30, '+1 bulgăre', '#ffffff');
       } else if (e.type === 'splat') {
         snowBurst(this, this.addWorld, px(e.x), px(e.y), reducedEffects() ? 4 : 9, 22);
+        if (e.playerId) playSfx('lovit', e.byId === me ? 1 : this.volumeAt(px(e.x), px(e.y), e.playerId));
         if (e.playerId === me) {
           shake(140, 0.005);
           vibrate(60);
@@ -363,12 +439,16 @@ export class GameScene extends Phaser.Scene {
           floatText(this, this.addWorld, px(e.x), px(e.y) - 30, 'Nimerit!', '#7cf29a');
         }
       } else if (e.type === 'bump') {
+        playSfx('ciocnire', e.a === me || e.b === me ? 1 : this.volumeAt(px(e.x), px(e.y), e.a) * 0.6);
         if (e.a === me || e.b === me) vibrate(25);
       } else if (e.type === 'finish') {
         const p = state.players[e.playerId];
         const pos = this.posOf(e.playerId);
         if (p && pos) floatText(this, this.addWorld, pos.x, pos.y - 34, e.place === 1 ? 'Primul!' : `Locul ${e.place}`, hexColor(PLAYER_COLORS[p.slot] ?? 0xffffff));
-        if (e.playerId === me) vibrate(e.place === 1 ? 150 : 60);
+        if (e.playerId === me) {
+          vibrate(e.place === 1 ? 150 : 60);
+          playSfx('sosire');
+        }
       } else if (e.type === 'roundStart') {
         for (const sled of this.sleds.values()) sled.reset();
         this.trails.clear();
@@ -392,11 +472,24 @@ export class GameScene extends Phaser.Scene {
     if (this.transport.pausable && this.transport.getState().phase !== 'finished') this.transport.setPaused(true);
   }
 
-  /** The final panel's last line: what Enter (or a tap) does now. */
-  private finishedFooter(): string {
-    if (this.data_.newMatch) return isTouch ? 'Atinge pentru un meci nou' : 'Enter = meci nou';
-    if (this.transport.getState().hostId !== this.transport.playerId) return 'Așteaptă ca hostul să revină în lobby...';
-    return isTouch ? 'Atinge ca să revii în lobby' : 'Enter = înapoi în lobby';
+  /** The podium takes over the screen once the match is over. */
+  private syncPodium(state: Readonly<GameState>, records: readonly NewRecord[]): void {
+    if (state.phase !== 'finished') {
+      this.podium?.destroy();
+      this.podium = undefined;
+      return;
+    }
+    if (this.podium) {
+      this.podium.update(state, records);
+      return;
+    }
+    playSfx('castig');
+    this.podium = new Podium(this, this.addHud, state, {
+      me: this.transport.playerId,
+      online: this.transport.online,
+      testMatch: !!this.data_.newMatch,
+      onContinue: () => this.onContinue(),
+    });
   }
 
   /** Enter or a tap: after the match a new one (test URL) or back to the lobby (host); paused, resume. */
@@ -420,8 +513,9 @@ export class GameScene extends Phaser.Scene {
   /** "Ieși (Esc)" in the top-right corner, with "Pauză" next to it in offline games. */
   private createCornerButtons(): HTMLElement {
     const leave = button(isTouch ? 'Ieși' : 'Ieși (Esc)', () => this.setConfirm(true), 'secondary', 'small');
+    const mute = muteButton(sceneLifetime(this), 'icon');
     if (this.transport.pausable) this.pauseButton = button('Pauză', () => this.togglePause(), 'secondary', 'small');
-    const corner = el('div', { class: 'game-corner' }, [this.pauseButton, leave]);
+    const corner = el('div', { class: 'game-corner' }, [mute, this.pauseButton, leave]);
     // The buttons are HTML over the canvas: a tap on them must not reach the game too.
     corner.addEventListener('pointerdown', (e) => e.stopPropagation());
     document.body.append(corner);

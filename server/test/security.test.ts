@@ -7,7 +7,7 @@ import { createServer } from '../src/app';
 import { forwardedClientIp, ipKey } from '../src/clientIp';
 import { MAX_ROOMS_PER_IP, MAX_WS_PER_IP, RATES } from '../src/config';
 import { isAllowedOrigin, type Guard } from '../src/guard';
-import { Counts, RateLimiter } from '../src/limits';
+import { Counts, DailyQuota, RateLimiter } from '../src/limits';
 import type { SaniutaRoom } from '../src/SaniutaRoom';
 
 // The attacks of the skill's security checklist against a real server on 2571, and that each is
@@ -190,6 +190,12 @@ describe('M2: per-address limits, Origin and CORS', () => {
     expect((await http('GET', '/status', viaCaddy(ip))).status).toBe(429);
   });
 
+  it('refuses a flood of /leaderboard', async () => {
+    const ip = freshIp();
+    for (let i = 0; i < RATES.leaderboard.burst; i++) expect((await http('GET', '/leaderboard', viaCaddy(ip))).status).toBe(200);
+    expect((await http('GET', '/leaderboard', viaCaddy(ip))).status).toBe(429);
+  });
+
   it('refuses a flood of /rooms/:code', async () => {
     const real = (await createRoom(viaCaddy(freshIp()))).body!.roomId!;
     const ip = freshIp();
@@ -342,6 +348,15 @@ describe('limits', () => {
     const limiter = new RateLimiter({ burst: 1, perMinute: 1 }, 3);
     for (const k of ['a', 'b', 'c', 'd']) limiter.take(k, 0);
     expect(limiter['buckets'].size).toBeLessThanOrEqual(3);
+  });
+
+  it('a daily quota starts over on the next UTC day', () => {
+    const quota = new DailyQuota(1);
+    const day1 = new Date('2026-11-20T23:59:00Z');
+    expect(quota.has('a', day1)).toBe(true);
+    quota.use('a', day1);
+    expect(quota.has('a', day1)).toBe(false);
+    expect(quota.has('a', new Date('2026-11-21T00:01:00Z'))).toBe(true);
   });
 
   it('counts open things and forgets keys at zero', () => {

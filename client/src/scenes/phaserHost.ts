@@ -25,6 +25,8 @@ function go(scene: Phaser.Scene, route: Route): void {
   } else if (route.to === 'game') {
     const data: GameSceneData = { transport: route.transport, debug, tune: false };
     scenes.start('game', data);
+  } else if (route.to === 'leaderboard') {
+    scenes.start('leaderboard');
   } else {
     scenes.start(route.to, route.data);
   }

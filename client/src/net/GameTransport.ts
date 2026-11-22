@@ -1,4 +1,4 @@
-import type { ClientMessage, GameEvent, GameState } from '@saniuta/shared';
+import type { ClientMessage, GameEvent, GameState, NewRecord } from '@saniuta/shared';
 import type { RideInput } from '../input/InputSource';
 import type { RenderView } from './view';
 
@@ -36,6 +36,8 @@ export interface GameTransport {
   readonly closeReason: string;
   /** Online only, for ?debug. */
   netStats?(): NetStats;
+  /** Online only: leaderboard records set in the run just finished (cleared when the next one starts). */
+  newRecords?(): readonly NewRecord[];
   dispose(): void;
 }
 

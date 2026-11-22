@@ -44,10 +44,16 @@ Clasamentul vine în etapa 6: punctele lui se bifează atunci.
 - [x] Duplicate în cameră ⇒ „Ana 2”; `nameKey` (porecla normalizată, litere mici) pentru clasament.
 
 ## Clasament (etapa 6)
-- [ ] ≥ 2 oameni care au jucat real (≥ 30% din tick-uri activi); starea `idle` („zzz”) există deja pe server.
-- [ ] Doar oamenii prezenți la final, fără boți; meciurile offline nu ajung la server.
-- [ ] Maxim N meciuri salvate pe IP pe zi (`DailyQuota` există în `limits.ts`).
-- [ ] Erorile bazei doar logate; fără IP-uri în bază.
+- [x] Se salvează per manșă, doar pe pârtiile fixe, doar cu ≥ 2 oameni care au jucat manșa de-adevăratelea:
+      input ținut în ≥ 30% din tick-urile în care au coborât după numărătoare, fără să fie „zzz”
+      (`SaniutaRoom.trackActivity`/`playedForReal`, `leaderboard.ts runResult`). Teste: `leaderboard.test.ts`.
+- [x] Doar oamenii care au trecut linia și sunt încă în cameră; niciodată boții; offline nu ajunge la server.
+      Teste: `leaderboard.test.ts`.
+- [x] Maxim 200 de manșe salvate pe adresă pe zi UTC (`DailyQuota`, `LEADERBOARD_RUNS_PER_IP_PER_DAY`);
+      cei de peste sunt lăsați afară, ceilalți din manșă contează. Test: `security.test.ts` (limits).
+- [x] Erorile bazei doar logate (o bază care nu se deschide = joc fără clasament); fără IP-uri în bază (doar
+      porecla normalizată, timpul, pârtia, camera, ora). Test: `leaderboard.test.ts`. `GET /leaderboard` are
+      rate limit (30/min) și cache de 30 s. Test: `security.test.ts`.
 
 ## Client și dependențe
 - [x] `@colyseus/sdk` fixat la `0.18.10` (exact), cu `client/test/sdkReconnect.test.ts` pentru internals.

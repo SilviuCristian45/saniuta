@@ -95,6 +95,7 @@ export function rideSled(p: PlayerState, track: Track, events: GameEvent[]): voi
     p.vy = decay(p.vy, AIR_DRAG);
     move(p);
     p.airTicks--;
+    p.airTime++;
     if (p.airTicks === 0) {
       p.airTotal = 0;
       p.vx += idiv(TUNING.landBoost * icos(p.heading), TRIG_ONE);
@@ -202,7 +203,7 @@ export function hitObstacles(p: PlayerState, track: Track, events: GameEvent[]):
       p.steer = 0;
       p.firePressed = false;
       p.crashes++;
-      events.push({ type: 'crash', playerId: p.id, x: o.x - idiv(nx * o.r, TRIG_ONE), y: o.y - idiv(ny * o.r, TRIG_ONE) });
+      events.push({ type: 'crash', playerId: p.id, x: o.x - idiv(nx * o.r, TRIG_ONE), y: o.y - idiv(ny * o.r, TRIG_ONE), obstacle: o.kind });
     } else {
       p.vx = tx;
       p.vy = ty;

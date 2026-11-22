@@ -112,6 +112,7 @@ export function updateBalls(state: GameState, track: Track, racers: readonly Pla
       victim.vx = idiv(victim.vx * TUNING.ballHitKeepPct, 100);
       victim.vy = idiv(victim.vy * TUNING.ballHitKeepPct, 100);
       victim.splatTicks = SPLAT_TICKS;
+      victim.hitsTaken++;
       const thrower = racers.find((p) => p.slot === owner);
       if (thrower) thrower.hits++;
       events.push({ type: 'splat', playerId: victim.id, byId: thrower?.id ?? '', x, y });

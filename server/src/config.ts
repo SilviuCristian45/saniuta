@@ -8,6 +8,14 @@ export const PORT = Number(process.env.PORT ?? 2570);
 /** Rooms alive at once; one more "Creează joc" is refused with "Serverul e plin" (1 GB VPS, shared). */
 export const MAX_ROOMS = envInt('MAX_ROOMS', 20);
 
+/**
+ * All-time leaderboard database. saniuta.service sets /var/lib/saniuta/leaderboard.db (its StateDirectory,
+ * outside /opt/saniuta); production never falls back to a path inside the release folder, which a later
+ * deploy would delete.
+ */
+export const DB_PATH =
+  process.env.DB_PATH ?? (process.env.NODE_ENV === 'production' ? '/var/lib/saniuta/leaderboard.db' : 'data/leaderboard.db');
+
 /** Seconds a dropped player keeps their place. */
 export const RECONNECT_SECONDS = 15;
 
@@ -24,6 +32,8 @@ export const MAX_ROOMS_PER_IP = envInt('MAX_ROOMS_PER_IP', 4);
 export const MAX_WS_PER_IP = envInt('MAX_WS_PER_IP', 24);
 /** A lobby nobody starts is closed after this long (a room must not be held forever by an idle tab). */
 export const LOBBY_IDLE_MINUTES = envInt('LOBBY_IDLE_MINUTES', 20);
+/** Saved leaderboard runs per address per UTC day (an evening of matches is 50-100 runs); players beyond it are left out. */
+export const LEADERBOARD_RUNS_PER_IP_PER_DAY = envInt('LEADERBOARD_RUNS_PER_IP_PER_DAY', 200);
 
 /** Request rates per address: a burst, then a steady refill. */
 export const RATES = {
@@ -35,6 +45,8 @@ export const RATES = {
   wsOpen: { burst: 30, perMinute: 60 },
   /** GET /rooms/:code. */
   roomStatus: { burst: 20, perMinute: 20 },
+  /** GET /leaderboard. */
+  leaderboard: { burst: 30, perMinute: 30 },
   /** GET /status (the deploy's public check). */
   status: { burst: 30, perMinute: 30 },
   /** Codes of rooms that do not exist (join, reconnect, /rooms/:code): makes guessing codes hopeless. */
