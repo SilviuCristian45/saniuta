@@ -4,6 +4,12 @@ import { BOT_EASY, BOT_HARD, BOT_MEDIUM, DEFAULT_ROUNDS, MAX_PLAYERS, ROUND_OPTI
 
 export const params = new URLSearchParams(window.location.search);
 
+/** Test options that skip the intro and menus and start a local match at once. */
+const QUICK_KEYS = ['bots', 'rounds', 'track', 'seed', 'botlevel', 'tune', 'debug'];
+/** ?online (implied by an invite ?room=) keeps the normal menus, so ?debug applies to online games. */
+const keepMenus = ['online', 'room'].some((key) => params.has(key));
+export const quickStart = !keepMenus && QUICK_KEYS.some((key) => params.has(key));
+
 /** ?debug: hitboxes, bot lines, tick/FPS, own speed and state. */
 export const debug = params.has('debug');
 

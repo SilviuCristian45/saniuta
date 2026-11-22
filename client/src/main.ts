@@ -1,15 +1,20 @@
 import Phaser from 'phaser';
 import './style.css';
+import './screens.css';
+import { isValidRoomCode, normalizeRoomCode } from '@saniuta/shared';
 import { isTouch } from './device';
 import { LocalTransport } from './net/LocalTransport';
 import { GAME_H, GAME_W } from './render/layout';
 import { GameScene, type GameSceneData } from './scenes/GameScene';
+import { IntroScene, LobbyScene, MenuScene, NameScene } from './scenes/menuScenes';
+import type { MenuData } from './screens/host';
+import { trackVisualViewport } from './ui/html';
 import { initRotatePrompt } from './ui/orientation';
-import { debug, quickBotLevel, quickBots, quickRounds, quickSeed, quickTrack, tune } from './urlOptions';
+import { debug, params, quickBotLevel, quickBots, quickRounds, quickSeed, quickStart, quickTrack, tune } from './urlOptions';
 
-// Stage 2: the page starts a local match against bots right away (menus and the lobby come next).
-// URL options: ?bots=1..5, ?rounds=3|5|7, ?track=0..3, ?seed=abc, ?botlevel=usor|mediu|greu,
-// ?debug, ?tune, ?touch / ?touch=0.
+// Intro -> nickname -> menu -> lobby -> game -> lobby. Test URL options skip the menus and start a
+// local match at once: ?bots=1..5, ?rounds=3|5|7, ?track=0..3, ?seed=abc, ?botlevel=usor|mediu|greu,
+// ?debug, ?tune. ?touch / ?touch=0 only force the layout (device.ts).
 if (tune) document.body.classList.add('tuning');
 
 function localMatch(seed = quickSeed): GameSceneData {
@@ -29,9 +34,20 @@ function localMatch(seed = quickSeed): GameSceneData {
   };
 }
 
+// ?room=COD (invite link): after the intro and the nickname, the menu joins that room.
+function menuData(): MenuData {
+  const room = params.get('room');
+  if (room === null) return {};
+  const code = normalizeRoomCode(room);
+  return isValidRoomCode(code) ? { invite: code } : { message: 'Codul din link nu e valid.' };
+}
+
+// Phones: no long-press menu (the CSS already stops selection and the callout); text fields keep theirs.
 if (isTouch) {
   document.body.classList.add('touch');
-  document.addEventListener('contextmenu', (e) => e.preventDefault());
+  document.addEventListener('contextmenu', (e) => {
+    if (!(e.target instanceof HTMLInputElement)) e.preventDefault();
+  });
 }
 
 const game = new Phaser.Game({
@@ -47,4 +63,9 @@ const game = new Phaser.Game({
 // ?debug: the game object for scripted browser tests.
 if (debug) (window as unknown as { __game?: Phaser.Game }).__game = game;
 initRotatePrompt();
-game.scene.add('game', GameScene, true, localMatch());
+trackVisualViewport();
+game.scene.add('intro', IntroScene, !quickStart, menuData());
+game.scene.add('name', NameScene);
+game.scene.add('menu', MenuScene);
+game.scene.add('lobby', LobbyScene);
+game.scene.add('game', GameScene, quickStart, quickStart ? localMatch() : undefined);

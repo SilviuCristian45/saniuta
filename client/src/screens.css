@@ -1,0 +1,912 @@
+/* HTML screens (intro, name, menu, lobby), dialogs and the buttons over the game, in the
+   dusk-on-the-mountain look: snowy white and ice blue on deep night blue, warm sunset orange for
+   what to press. */
+
+/* ---------- screens ---------- */
+
+/* `hidden` wins over the display of .btn and friends. */
+[hidden] {
+  display: none !important;
+}
+
+.screen {
+  position: fixed;
+  left: 0;
+  right: 0;
+  /* Follows the visual viewport, so the phone keyboard does not hide the focused field. */
+  top: var(--vv-top, 0px);
+  height: var(--vv-height, 100%);
+  z-index: 10;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  padding: calc(var(--sat) + 16px) calc(var(--sar) + 16px) calc(var(--sab) + 16px) calc(var(--sal) + 16px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Centered when it fits, scrollable from the top when it does not. */
+.screen > .column {
+  margin: auto 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* The title in snow: white letters, an icy outline, "la vale" in the warm light of the sunset. */
+.title {
+  margin: 0;
+  font-size: clamp(40px, 9vw, 92px);
+  font-weight: bold;
+  line-height: 1;
+  letter-spacing: 1px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.title-line {
+  display: block;
+  white-space: nowrap;
+  color: #ffffff;
+  -webkit-text-stroke: 2px #1d2a52;
+  paint-order: stroke fill;
+  text-shadow:
+    0 0 18px rgba(190, 215, 255, 0.55),
+    0 5px 0 #1d2a52;
+}
+
+.title-line.sub {
+  font-size: 0.62em;
+  color: var(--accent);
+  text-shadow:
+    0 0 16px rgba(255, 179, 71, 0.6),
+    0 4px 0 #1d2a52;
+}
+
+.title.small {
+  font-size: clamp(28px, 4.8vw, 46px);
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.3em;
+}
+
+.title.small .title-line.sub {
+  font-size: 1em;
+}
+
+.subtitle {
+  margin: 20px 0 0;
+  max-width: 640px;
+  font-size: clamp(15px, 3.5vw, 21px);
+  color: var(--text-soft);
+  text-shadow: 0 2px 6px rgba(20, 27, 51, 0.9);
+}
+
+.message {
+  min-height: 1.3em;
+  margin: 10px 0 0;
+  font-size: 15px;
+  color: var(--error);
+  white-space: pre-line;
+  text-shadow: 0 1px 4px rgba(20, 27, 51, 0.9);
+}
+
+.message.info {
+  color: var(--text-soft);
+}
+
+.invite-line {
+  margin: 14px 0 0;
+  font-size: 18px;
+  color: var(--accent);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  background: var(--line-dim);
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: 0 3px 0 #10162b;
+}
+
+.btn:hover:not(:disabled) {
+  background: #43558a;
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: #2a1a10;
+  box-shadow:
+    0 3px 0 #b86b1f,
+    0 0 16px rgba(255, 179, 71, 0.35);
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+.btn:disabled,
+.btn.dim,
+.btn.dim:hover {
+  background: #222c4a;
+  color: var(--faint);
+  box-shadow: none;
+  cursor: default;
+}
+
+/* The chosen option stays readable for players who cannot change it. */
+.btn.primary:disabled {
+  background: #a77434;
+  color: #2a1a10;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn.big {
+  font-size: clamp(22px, 5vw, 30px);
+  padding: 12px 30px;
+}
+
+.btn.medium {
+  font-size: 22px;
+  padding: 8px 22px;
+}
+
+.btn.small {
+  font-size: 14px;
+  min-height: 36px;
+  padding: 6px 12px;
+}
+
+.link {
+  background: none;
+  border: 0;
+  padding: 6px 4px;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+}
+
+.link:hover {
+  color: var(--accent-hover);
+}
+
+.field {
+  box-sizing: border-box;
+  font: 20px var(--font);
+  text-align: center;
+  padding: 8px 12px;
+  color: var(--text);
+  background: #18213f;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.field:focus {
+  border-color: var(--accent);
+}
+
+.field.invalid {
+  border-color: #ff6b5b;
+}
+
+.field::placeholder {
+  color: var(--faint);
+  letter-spacing: normal;
+}
+
+.field.big {
+  width: min(380px, 100%);
+  font-size: 30px;
+  padding: 12px 16px;
+}
+
+.field:disabled {
+  opacity: 0.5;
+}
+
+.code-boxes {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.field.code-box {
+  width: 48px;
+  height: 60px;
+  padding: 0;
+  font-size: 32px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.field.code-box.invalid {
+  animation: shake 0.3s;
+}
+
+@keyframes shake {
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+@media (max-width: 380px) {
+  .code-boxes {
+    gap: 5px;
+  }
+  .field.code-box {
+    width: 40px;
+    height: 54px;
+    font-size: 28px;
+  }
+}
+
+/* ---------- intro ---------- */
+
+.intro .btn.big {
+  margin-top: 56px;
+}
+
+/* ---------- name ---------- */
+
+.name-screen h2 {
+  margin: 28px 0 18px;
+  font-size: clamp(26px, 6vw, 40px);
+  font-weight: normal;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(20, 27, 51, 0.9);
+}
+
+.name-screen .field-wrap {
+  width: min(380px, 100%);
+}
+
+.name-screen .counter {
+  text-align: right;
+  font-size: 13px;
+  color: var(--text-soft);
+  margin-top: 4px;
+}
+
+.name-screen .actions {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+/* ---------- menu ---------- */
+
+.menu .playing-as {
+  margin: 10px 0 0;
+  font-size: 15px;
+  color: var(--text-soft);
+  text-shadow: 0 1px 4px rgba(20, 27, 51, 0.9);
+}
+
+.cards {
+  margin-top: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 30px;
+  width: 100%;
+}
+
+/* A panel like a wooden sign with snow on top. */
+.card {
+  box-sizing: border-box;
+  width: 400px;
+  max-width: 100%;
+  min-height: 230px;
+  padding: 26px 18px 20px;
+  background: var(--panel);
+  border: 3px solid #8a5a33;
+  border-top: 7px solid #f2f6ff;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(10, 14, 30, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 28px;
+  color: #fff;
+}
+
+.card p {
+  margin: 0;
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.card .soon {
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.card.clickable {
+  cursor: pointer;
+}
+
+.card.clickable:hover {
+  border-color: var(--accent);
+  border-top-color: #f2f6ff;
+}
+
+.card .card-action {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.card .problem {
+  min-height: 2.6em;
+  font-size: 13px;
+  color: var(--error);
+}
+
+.menu .status {
+  margin-top: 16px;
+}
+
+.menu-footer {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Desktop: the effects toggle sits in the bottom-left corner. */
+.corner-toggle {
+  position: fixed;
+  left: calc(var(--sal) + 16px);
+  bottom: calc(var(--sab) + 16px);
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 760px) {
+  .cards {
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .card {
+    min-height: 0;
+    padding: 18px 14px 14px;
+  }
+  .card h2 {
+    font-size: 24px;
+  }
+}
+
+/* Phone held sideways: little height, so everything gets tighter. */
+@media (max-height: 520px) {
+  .screen {
+    padding-top: calc(var(--sat) + 10px);
+    padding-bottom: calc(var(--sab) + 10px);
+  }
+  .title {
+    font-size: 40px;
+  }
+  .title.small {
+    font-size: 26px;
+  }
+  .cards {
+    margin-top: 10px;
+    gap: 16px;
+    flex-wrap: nowrap;
+  }
+  .card {
+    min-height: 0;
+    padding: 12px 14px 10px;
+    gap: 7px;
+  }
+  .card h2 {
+    font-size: 21px;
+  }
+  .card p {
+    font-size: 14px;
+  }
+  .intro .btn.big {
+    margin-top: 30px;
+  }
+  .menu .playing-as {
+    margin-top: 4px;
+  }
+  .card .problem {
+    min-height: 1.3em;
+  }
+  .field.code-box {
+    width: 42px;
+    height: 50px;
+    font-size: 28px;
+  }
+  .name-screen h2 {
+    margin: 14px 0 12px;
+  }
+  .menu .status {
+    margin-top: 6px;
+  }
+  .menu-footer {
+    margin-top: 4px;
+  }
+  .btn.medium {
+    font-size: 18px;
+    min-height: 40px;
+  }
+  .corner-toggle {
+    position: static;
+    margin-top: 10px;
+  }
+}
+
+/* ---------- lobby ---------- */
+
+.lobby .column {
+  max-width: 1000px;
+}
+
+.lobby-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    'head head'
+    'players side';
+  gap: 18px 36px;
+  width: 100%;
+  align-items: start;
+}
+
+.lobby-head {
+  grid-area: head;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.lobby-head .label,
+.lobby-side .label,
+.lobby-players .count {
+  font-size: 16px;
+  color: var(--text-soft);
+  text-shadow: 0 1px 4px rgba(20, 27, 51, 0.9);
+}
+
+.room-code {
+  font-size: 56px;
+  font-weight: bold;
+  letter-spacing: 8px;
+  line-height: 1.1;
+  color: #ffffff;
+  -webkit-text-stroke: 2px #1d2a52;
+  paint-order: stroke fill;
+  text-shadow:
+    0 0 14px rgba(190, 215, 255, 0.55),
+    0 4px 0 #1d2a52;
+}
+
+.lobby-head .share-hint {
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.lobby-players {
+  grid-area: players;
+  text-align: left;
+  justify-self: end;
+  width: min(420px, 100%);
+  padding: 12px;
+  box-sizing: border-box;
+  background: var(--panel);
+  border-radius: 12px;
+}
+
+.lobby-players .count {
+  margin-bottom: 8px;
+}
+
+.player-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 10px;
+  background: rgba(52, 67, 110, 0.6);
+  border: 1px solid var(--line-dim);
+  border-radius: 8px;
+  font-size: 18px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.player-row img {
+  width: 40px;
+  height: 27px;
+  flex: none;
+  /* The sled textures point right (downhill on the slope is down): a turn makes them go down. */
+  transform: rotate(90deg);
+}
+
+.player-row .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-row.empty {
+  background: rgba(52, 67, 110, 0.2);
+  border-style: dashed;
+}
+
+.player-row.empty .name {
+  color: var(--faint);
+}
+
+.player-row.away .name {
+  color: var(--muted);
+}
+
+.host-tag {
+  flex: none;
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #2a1a10;
+  background: var(--accent);
+  border-radius: 8px;
+}
+
+/* A bot's level at the end of its row: green, yellow, red. The host cycles it with a click. */
+.bot-level {
+  margin-left: auto;
+  flex: none;
+  min-width: 64px;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: bold;
+  color: #1a1a1a;
+  background: var(--lvl, var(--muted));
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.bot-level.lvl-0 {
+  --lvl: #52b788;
+}
+
+.bot-level.lvl-1 {
+  --lvl: #ffd60a;
+}
+
+.bot-level.lvl-2 {
+  --lvl: #ff6b6b;
+}
+
+.bot-level:not(:disabled):hover {
+  filter: brightness(1.15);
+}
+
+.bot-level:disabled {
+  cursor: default;
+}
+
+.rules {
+  white-space: pre-line;
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.lobby-side {
+  grid-area: side;
+  justify-self: start;
+  width: min(380px, 100%);
+  padding: 12px;
+  box-sizing: border-box;
+  background: var(--panel);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.track-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.track-btn {
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  white-space: normal;
+  line-height: 1.15;
+}
+
+.track-btn .track-name {
+  font-size: 15px;
+}
+
+.track-btn .track-hint {
+  font-size: 12px;
+  font-weight: normal;
+  opacity: 0.85;
+}
+
+.round-btn {
+  min-width: 52px;
+  font-size: 20px;
+}
+
+.level-btn {
+  min-width: 78px;
+  padding-left: 8px;
+  padding-right: 8px;
+  font-size: 16px;
+}
+
+.lobby-side .hint {
+  min-height: 1.3em;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* Sideways phone: code, players and settings in three columns, nothing below the fold. */
+@media (max-height: 520px) {
+  .lobby-grid {
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.1fr) minmax(0, 1.2fr);
+    grid-template-areas: 'head players side';
+    gap: 10px;
+  }
+  .lobby-players,
+  .lobby-side {
+    justify-self: stretch;
+    width: auto;
+    padding: 8px;
+  }
+  .room-code {
+    font-size: 30px;
+    letter-spacing: 3px;
+  }
+  .player-rows {
+    gap: 4px;
+  }
+  .player-row {
+    height: 27px;
+    font-size: 14px;
+    gap: 6px;
+  }
+  .rules {
+    margin-top: 8px;
+    line-height: 1.35;
+  }
+  .player-row img {
+    width: 30px;
+    height: 20px;
+  }
+  .rules {
+    font-size: 11px;
+  }
+  .lobby-side {
+    gap: 5px;
+  }
+  .track-btn {
+    min-height: 36px;
+    padding: 3px 6px;
+  }
+  .track-btn .track-name {
+    font-size: 13px;
+  }
+  .track-btn .track-hint {
+    font-size: 10px;
+  }
+  .bot-level {
+    min-width: 50px;
+    font-size: 12px;
+    padding: 1px 6px;
+  }
+  .round-btn,
+  .level-btn {
+    min-width: 0;
+    min-height: 34px;
+    font-size: 14px;
+  }
+  .lobby-side .btn-row {
+    gap: 6px;
+  }
+  .lobby-side .btn {
+    min-height: 32px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    font-size: 14px;
+  }
+  .lobby-side .btn.medium {
+    min-height: 36px;
+    font-size: 18px;
+  }
+  .lobby-side .label {
+    font-size: 13px;
+  }
+  .lobby-side .hint {
+    min-height: 0;
+    font-size: 12px;
+  }
+}
+
+/* Narrow and tall (a tablet held upright): one column. */
+@media (max-width: 640px) and (min-height: 521px) {
+  .lobby-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'head' 'players' 'side';
+  }
+  .lobby-players,
+  .lobby-side {
+    justify-self: center;
+  }
+}
+
+/* ---------- dialogs ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(13, 18, 38, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--sat) + 16px) calc(var(--sar) + 16px) calc(var(--sab) + 16px) calc(var(--sal) + 16px);
+  box-sizing: border-box;
+}
+
+.modal {
+  box-sizing: border-box;
+  width: min(520px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 26px 22px;
+  background: #18213f;
+  border: 3px solid #8a5a33;
+  border-top: 7px solid #f2f6ff;
+  border-radius: 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.modal h2 {
+  margin: 0;
+  font-size: 22px;
+  color: #fff;
+  line-height: 1.4;
+  white-space: pre-line;
+}
+
+.modal .btn-row {
+  flex-wrap: wrap;
+}
+
+.toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  padding: 6px 12px;
+  background: var(--line-dim);
+  color: var(--text);
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 17px;
+  text-align: left;
+}
+
+.toggle .state {
+  flex: none;
+  min-width: 3em;
+  padding: 4px 8px;
+  text-align: center;
+  background: #222c4a;
+  color: var(--muted);
+  border-radius: 6px;
+}
+
+.toggle.on .state {
+  background: var(--accent);
+  color: #2a1a10;
+}
+
+/* ---------- over the game ---------- */
+
+/* "Pauză" and "Ieși (Esc)" in the top-right corner of the game. */
+.game-corner {
+  position: fixed;
+  z-index: 40;
+  top: calc(var(--sat) + 10px);
+  right: calc(var(--sar) + 10px);
+  display: flex;
+  gap: 8px;
+}
+
+.game-corner .btn {
+  opacity: 0.85;
+}
+
+.game-corner .btn:hover {
+  opacity: 1;
+}
+
+/* The ?tune panel takes the top-right corner. */
+body.tuning .game-corner {
+  right: calc(var(--sar) + 320px);
+}

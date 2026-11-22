@@ -29,7 +29,12 @@ import { ensureTextures, TEX } from '../render/textures';
 import { TrackView } from '../render/TrackView';
 import { Trails } from '../render/Trails';
 import { getSetting, reducedEffects, vibrate } from '../settings';
+import { openDialog, type Dialog } from '../ui/dialog';
+import { useScaleMode } from '../ui/dom';
+import { el } from '../ui/el';
+import { button } from '../ui/html';
 import { fullscreenOnFirstTap } from '../ui/orientation';
+import type { LobbySceneData } from './menuScenes';
 
 export interface GameSceneData {
   transport: GameTransport;
@@ -68,6 +73,11 @@ export class GameScene extends Phaser.Scene {
   private balls: Phaser.GameObjects.Image[] = [];
   private view: RenderView = EMPTY_VIEW;
   private snapCamera = true;
+  /** "Sigur ieși?" while open. */
+  private confirm?: Dialog;
+  /** The leave dialog paused the offline match, so closing it resumes. */
+  private confirmPaused = false;
+  private pauseButton?: HTMLButtonElement;
 
   constructor() {
     super('game');
@@ -87,9 +97,13 @@ export class GameScene extends Phaser.Scene {
     this.debugOverlay = undefined;
     this.tunePanel = undefined;
     this.snapCamera = true;
+    this.confirm = undefined;
+    this.confirmPaused = false;
+    this.pauseButton = undefined;
   }
 
   create(): void {
+    useScaleMode(this, Phaser.Scale.FIT);
     ensureTextures(this);
     // Every game starts from the default riding numbers; saved ?tune values only for a local ?tune game.
     applyGameTuning({ online: this.transport.online, tune: this.data_.tune, saved: savedTuning() });
@@ -123,8 +137,7 @@ export class GameScene extends Phaser.Scene {
     this.trails = new Trails(this, this.addWorld, reduced ? 90 : 320);
     this.snowfall = new Snowfall(this, this.addHud, reduced ? 30 : 110);
     this.hud = new Hud(this, this.addHud, () => undefined);
-    const footer = this.data_.newMatch ? (isTouch ? 'Atinge pentru un meci nou' : 'Enter = meci nou') : '';
-    this.results = new ResultsPanel(this, this.addHud, footer, () => this.onContinue());
+    this.results = new ResultsPanel(this, this.addHud, () => this.finishedFooter(), () => this.onContinue());
     this.pauseText = this.addHud(
       this.add
         .text(GAME_W / 2, GAME_H / 2, '', { fontFamily: FONT, fontSize: '40px', fontStyle: 'bold', color: COLORS.gold, stroke: COLORS.outline, strokeThickness: 8, align: 'center' })
@@ -142,16 +155,27 @@ export class GameScene extends Phaser.Scene {
 
     this.unsubscribe = this.transport.onEvents((events) => this.handleEvents(events));
     this.game.events.on(Phaser.Core.Events.HIDDEN, this.onHidden, this);
-    this.input.keyboard!.on('keydown-P', () => this.togglePause());
+    this.input.keyboard!.on('keydown-P', () => {
+      if (!this.confirm) this.togglePause();
+    });
     this.input.keyboard!.on('keydown-ENTER', () => this.onContinue());
     // On a phone, a tap anywhere resumes a paused game (it pauses when the page goes to the background).
     this.input.on('pointerdown', () => {
       if (this.transport.isPaused()) this.togglePause();
     });
+    // Esc opens and closes the leave dialog (a DOM listener, so it stays in step with the dialog's buttons).
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.repeat) this.setConfirm(!this.confirm);
+    };
+    window.addEventListener('keydown', onEsc);
+    const corner = this.createCornerButtons();
     if (this.data_.debug) this.debugOverlay = new DebugOverlay(this, this.addWorld, this.addHud);
     if (this.data_.tune && !this.transport.online) this.tunePanel = new TunePanel();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener('keydown', onEsc);
+      corner.remove();
+      this.confirm?.close();
       this.unsubscribe?.();
       this.controls.destroy();
       // Phaser keeps key captures game-wide: without this, WASD and Space could not be typed in the menus.
@@ -168,12 +192,23 @@ export class GameScene extends Phaser.Scene {
     const before = this.transport.getState();
     const meBefore = before.players[this.transport.playerId];
     const input = this.controls.poll();
-    const canRide = before.phase === 'playing' && !!meBefore?.racing && !meBefore.finished && !this.transport.isPaused();
+    const canRide = before.phase === 'playing' && !!meBefore?.racing && !meBefore.finished && !this.transport.isPaused() && !this.confirm;
     this.transport.setInput(canRide ? input : NO_INPUT);
     this.transport.update(delta);
 
     const state = this.transport.getState();
+    // "Încă un meci": back in the lobby phase, the lobby scene takes over.
+    if (state.phase === 'lobby' && !this.data_.newMatch) {
+      const data: LobbySceneData = { transport: this.transport };
+      this.scene.start('lobby', data);
+      return;
+    }
     const me = state.players[this.transport.playerId];
+    if (this.pauseButton) {
+      this.pauseButton.hidden = state.phase !== 'playing' && state.phase !== 'results';
+      const label = this.transport.isPaused() ? 'Continuă' : 'Pauză';
+      if (this.pauseButton.textContent !== label) this.pauseButton.textContent = label;
+    }
     this.syncTrack(state);
     this.view = this.transport.view();
     this.touch?.setVisible(state.phase === 'playing' && !!me?.racing && !me.finished && !this.transport.isPaused());
@@ -201,8 +236,8 @@ export class GameScene extends Phaser.Scene {
     this.trackView?.destroy();
     this.minimap?.destroy();
     this.trackView = new TrackView(this, currentTrack(state), this.addWorld, reducedEffects());
-    // The minimap stays out of the way of the snowball button on phones.
-    this.minimap = new Minimap(this, this.addHud, this.trackView.track, 70, isTouch ? GAME_H - 250 : GAME_H - 40);
+    // The minimap stays out of the way of the "Pauză / Ieși" buttons and, on phones, the snowball button.
+    this.minimap = new Minimap(this, this.addHud, this.trackView.track, isTouch ? 125 : 70, isTouch ? GAME_H - 250 : GAME_H - 40);
     this.trails.clear();
     this.snapCamera = true;
   }
@@ -328,17 +363,75 @@ export class GameScene extends Phaser.Scene {
     if (this.transport.pausable && this.transport.getState().phase !== 'finished') this.transport.setPaused(true);
   }
 
-  /** Enter or a tap: after the match a new one (test URL); paused, resume. */
+  /** The final panel's last line: what Enter (or a tap) does now. */
+  private finishedFooter(): string {
+    if (this.data_.newMatch) return isTouch ? 'Atinge pentru un meci nou' : 'Enter = meci nou';
+    if (this.transport.getState().hostId !== this.transport.playerId) return 'Așteaptă ca hostul să revină în lobby...';
+    return isTouch ? 'Atinge ca să revii în lobby' : 'Enter = înapoi în lobby';
+  }
+
+  /** Enter or a tap: after the match a new one (test URL) or back to the lobby (host); paused, resume. */
   private onContinue(): void {
+    if (this.confirm) return;
     const state = this.transport.getState();
     if (state.phase === 'finished') {
       const next = this.data_.newMatch;
       if (next) {
         this.transport.dispose();
         this.scene.restart(next());
+      } else if (state.hostId === this.transport.playerId) {
+        // Back in the lobby phase, update() hands over to the lobby scene.
+        this.transport.send({ type: 'lobby' });
       }
       return;
     }
     if (this.transport.isPaused()) this.togglePause();
+  }
+
+  /** "Ieși (Esc)" in the top-right corner, with "Pauză" next to it in offline games. */
+  private createCornerButtons(): HTMLElement {
+    const leave = button(isTouch ? 'Ieși' : 'Ieși (Esc)', () => this.setConfirm(true), 'secondary', 'small');
+    if (this.transport.pausable) this.pauseButton = button('Pauză', () => this.togglePause(), 'secondary', 'small');
+    const corner = el('div', { class: 'game-corner' }, [this.pauseButton, leave]);
+    // The buttons are HTML over the canvas: a tap on them must not reach the game too.
+    corner.addEventListener('pointerdown', (e) => e.stopPropagation());
+    document.body.append(corner);
+    return corner;
+  }
+
+  /** "Sigur ieși?" before leaving a match for good; an offline match waits paused meanwhile. */
+  private setConfirm(open: boolean): void {
+    if (open === !!this.confirm) return;
+    if (!open) {
+      this.confirm!.close();
+      this.confirm = undefined;
+      if (this.confirmPaused) this.transport.setPaused(false);
+      this.confirmPaused = false;
+      return;
+    }
+    this.controls.releaseAll();
+    if (this.transport.pausable && !this.transport.isPaused() && this.transport.getState().phase !== 'finished') {
+      this.transport.setPaused(true);
+      this.confirmPaused = true;
+    }
+    const stay = button('Rămân', () => this.setConfirm(false), 'primary', 'medium');
+    this.confirm = openDialog([
+      el('h2', { text: this.leaveWarning() }),
+      el('div', { class: 'btn-row' }, [button('Da, ieși', () => this.leaveMatch(), 'secondary', 'medium'), stay]),
+    ]);
+    stay.focus();
+  }
+
+  private leaveWarning(): string {
+    const state = this.transport.getState();
+    if (state.phase === 'finished') return 'Ieși în meniu?';
+    if (!this.transport.online) return 'Sigur ieși?\nMeciul offline se încheie.';
+    return 'Sigur ieși?\nRămâi în clasament ca „a ieșit”.';
+  }
+
+  /** For good: offline the game just ends (online the server applies leavePlayer). */
+  private leaveMatch(): void {
+    this.transport.dispose();
+    this.scene.start('menu', {});
   }
 }

@@ -20,14 +20,15 @@ export class ResultsPanel {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly add: AddToHud,
-    private readonly footerFinished: string,
+    private readonly footerFinished: () => string,
     private readonly onTap: () => void,
   ) {}
 
   update(state: Readonly<GameState>, me: string): void {
     const show = state.phase === 'results' || state.phase === 'finished';
     const secs = state.phase === 'results' ? Math.ceil(state.phaseTimer / TICK_RATE) : 0;
-    const key = show ? `${state.phase}:${state.round}:${secs}` : '';
+    const footer = state.phase === 'finished' ? this.footerFinished() : `Manșa ${state.round + 1} începe în ${secs}...`;
+    const key = show ? `${state.phase}:${state.round}:${footer}` : '';
     if (key === this.key) return;
     this.key = key;
     this.clear();
@@ -87,7 +88,6 @@ export class ResultsPanel {
       }
       text(x0 + WIDTH - 30, y, String(p.points), 20, hexColor(0xffd166), 1);
     });
-    const footer = final ? this.footerFinished : `Manșa ${state.round + 1} începe în ${secs}...`;
     text(GAME_W / 2, y0 + height - 36, footer, 17, COLORS.textDim, 0.5);
   }
 
