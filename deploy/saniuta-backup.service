@@ -1,0 +1,21 @@
+# Daily copy of the leaderboard database, started by saniuta-backup.timer (installed by deploy/setup.sh).
+[Unit]
+Description=Săniuța la vale: backup clasament
+After=saniuta.service
+
+[Service]
+Type=oneshot
+User=saniuta
+Group=saniuta
+# Same directory and mode as saniuta.service.
+StateDirectory=saniuta
+StateDirectoryMode=0750
+ExecStart=/usr/local/sbin/saniuta-backup
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+PrivateNetwork=true

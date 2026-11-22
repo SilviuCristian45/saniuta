@@ -8,8 +8,12 @@ import type { Lifetime } from '../ui/html';
 export interface MenuData {
   /** Code from a ?room= invite link: joined right away. */
   invite?: string;
-  /** Shown on arrival, e.g. an invalid invite link. */
+  /** Shown on arrival, e.g. an invalid invite link or a lost connection. */
   message?: string;
+  /** The tab was reloaded during an online game: reconnect to that room right away. */
+  resume?: boolean;
+  /** Opened a link to another room while in this one ('' = code unknown): ask before switching. */
+  switchFrom?: string;
 }
 
 export interface NameData extends MenuData {

@@ -1,10 +1,11 @@
 import { MAX_PLAYERS, sanitizeName } from '@saniuta/shared';
 import { isTouch } from '../device';
 import type { GameTransport } from '../net/GameTransport';
-import { createOfflineRoom, createRoom, joinRoom, onlineEnabled, RoomError } from '../net/rooms';
+import { abandonResumableRoom, createOfflineRoom, createRoom, joinRoom, onlineEnabled, resumeRoom, RoomError } from '../net/rooms';
 import { getSetting, setSetting } from '../settings';
 import { load } from '../storage';
 import { CodeInput } from '../ui/CodeInput';
+import { openDialog } from '../ui/dialog';
 import { el } from '../ui/el';
 import { button, setButtonStyle, title } from '../ui/html';
 import { openSettings } from '../ui/settingsDialog';
@@ -35,8 +36,44 @@ export class MenuScreen {
       isTouch ? null : this.cornerToggle(),
     ]);
 
-    if (opts.invite) this.joinInvite(opts.invite);
+    if (opts.switchFrom !== undefined && opts.invite) this.askSwitch(opts.switchFrom, opts.invite);
+    else if (opts.resume) this.resume();
+    else if (opts.invite) this.joinInvite(opts.invite);
     else if (!isTouch && onlineEnabled) this.codeInput.focus();
+  }
+
+  private resume(): void {
+    void this.connect(resumeRoom(), 'Se reconectează la joc...');
+  }
+
+  /** A link to another room while this tab still has a game: the link wins, once confirmed. */
+  private askSwitch(current: string, invite: string): void {
+    const from = current ? ` (${current})` : '';
+    const stay = () => {
+      dialog.close();
+      // Whatever happens, a later reload should not ask again.
+      forgetInviteInUrl();
+      this.resume();
+    };
+    const dialog = openDialog(
+      [
+        el('h2', { text: `Ieși din jocul curent${from}
+și intri în ${invite}?` }),
+        el('div', { class: 'btn-row' }, [
+          button(
+            `Da, intru în ${invite}`,
+            () => {
+              dialog.close();
+              this.setStatus('Ieși din jocul curent...', true);
+              void abandonResumableRoom().then(() => this.joinInvite(invite));
+            },
+            'primary',
+          ),
+          button('Nu, rămân', stay),
+        ]),
+      ],
+      stay,
+    );
   }
 
   /** Desktop: "Efecte reduse" in the corner (touch devices have it under "Setări"). */

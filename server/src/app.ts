@@ -11,6 +11,15 @@ const health = createEndpoint('/health', { method: 'GET' }, async (ctx) =>
   ctx.json({ ok: true, rooms: roomCount(), maxRooms: MAX_ROOMS, uptime: Math.round(process.uptime()) }),
 );
 
+/**
+ * Public "the game server is up" through Caddy (/colyseus/status), for push.ps1 and caddy-update.sh:
+ * /health stays internal (it tells the room count), this says nothing but that.
+ */
+const status = createEndpoint('/status', { method: 'GET' }, async (ctx) => {
+  ctx.setHeader('Cache-Control', 'no-store');
+  return ctx.json({ ok: true });
+});
+
 /** Why a join by code failed: Colyseus reports both a full and a running room as "locked". */
 const roomInfo = createEndpoint('/rooms/:code', { method: 'GET' }, async (ctx) => {
   const code = normalizeRoomCode(ctx.params.code);
@@ -42,7 +51,7 @@ export function createServer(guardOptions: GuardOptions = DEFAULT_GUARD_OPTIONS)
   const colyseus = defineServer({
     transport: new WebSocketTransport({ server: http }),
     rooms: { [ROOM_NAME]: defineRoom(SaniutaRoom) },
-    routes: createRouter({ health, roomInfo }),
+    routes: createRouter({ health, status, roomInfo }),
     greet: false,
   });
   return {

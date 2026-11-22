@@ -110,6 +110,8 @@ export function installGuard(server: Server, options: GuardOptions = DEFAULT_GUA
         if (refused(limiters.matchmake)) return;
         if (action === 'create' && refused(limiters.createRoom)) return;
         if ((action === 'joinById' || action === 'reconnect') && unknownCode(key, safeDecode(target))) return;
+      } else if (method === 'GET' && path === '/status') {
+        if (refused(limiters.status)) return;
       } else if (method === 'GET' && path.startsWith('/rooms/')) {
         if (refused(limiters.roomStatus)) return;
         if (unknownCode(key, safeDecode(path.slice('/rooms/'.length)).trim().toUpperCase())) return;

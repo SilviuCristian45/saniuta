@@ -4,6 +4,8 @@ import './screens.css';
 import { isValidRoomCode, normalizeRoomCode } from '@saniuta/shared';
 import { isTouch } from './device';
 import { LocalTransport } from './net/LocalTransport';
+import { startupRoute } from './net/resume';
+import { resumableRoomCode } from './net/rooms';
 import { GAME_H, GAME_W } from './render/layout';
 import { GameScene, type GameSceneData } from './scenes/GameScene';
 import { IntroScene, LobbyScene, MenuScene, NameScene } from './scenes/menuScenes';
@@ -12,9 +14,10 @@ import { trackVisualViewport } from './ui/html';
 import { initRotatePrompt } from './ui/orientation';
 import { debug, params, quickBotLevel, quickBots, quickRounds, quickSeed, quickStart, quickTrack, tune } from './urlOptions';
 
-// Intro -> nickname -> menu -> lobby -> game -> lobby. Test URL options skip the menus and start a
-// local match at once: ?bots=1..5, ?rounds=3|5|7, ?track=0..3, ?seed=abc, ?botlevel=usor|mediu|greu,
-// ?debug, ?tune. ?touch / ?touch=0 only force the layout (device.ts).
+// Intro -> nickname -> menu -> lobby -> game -> lobby (a reload mid-game goes straight back in).
+// Test URL options skip the menus and start a local match at once: ?bots=1..5, ?rounds=3|5|7,
+// ?track=0..3, ?seed=abc, ?botlevel=usor|mediu|greu, ?debug, ?tune. ?touch / ?touch=0 only force
+// the layout (device.ts); ?online, ?lag=ms, ?jitter=ms keep the menus.
 if (tune) document.body.classList.add('tuning');
 
 function localMatch(seed = quickSeed): GameSceneData {
@@ -42,6 +45,12 @@ function menuData(): MenuData {
   return isValidRoomCode(code) ? { invite: code } : { message: 'Codul din link nu e valid.' };
 }
 
+// A reload during an online game skips the intro and reconnects to the same room; a link to
+// another room skips it too, and the menu asks whether to leave the current game for it.
+const startup = quickStart ? startupRoute(null, undefined) : startupRoute(resumableRoomCode(), menuData().invite);
+const resume = startup.kind !== 'normal';
+const menuStart: MenuData = startup.kind === 'switch' ? { invite: startup.to, switchFrom: startup.from } : resume ? { resume: true } : menuData();
+
 // Phones: no long-press menu (the CSS already stops selection and the callout); text fields keep theirs.
 if (isTouch) {
   document.body.classList.add('touch');
@@ -64,8 +73,8 @@ const game = new Phaser.Game({
 if (debug) (window as unknown as { __game?: Phaser.Game }).__game = game;
 initRotatePrompt();
 trackVisualViewport();
-game.scene.add('intro', IntroScene, !quickStart, menuData());
+game.scene.add('intro', IntroScene, !quickStart && !resume, menuData());
 game.scene.add('name', NameScene);
-game.scene.add('menu', MenuScene);
+game.scene.add('menu', MenuScene, resume, menuStart);
 game.scene.add('lobby', LobbyScene);
 game.scene.add('game', GameScene, quickStart, quickStart ? localMatch() : undefined);

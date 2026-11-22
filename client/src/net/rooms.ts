@@ -15,6 +15,7 @@ import { netSim } from '../urlOptions';
 import { ColyseusTransport } from './ColyseusTransport';
 import type { GameTransport } from './GameTransport';
 import { LocalTransport } from './LocalTransport';
+import { loadSeat, saveSeat, sessionSeatStorage, type SavedSeat } from './resume';
 
 // Where the menu gets its rooms from. Online rooms live on the Colyseus server at
 // VITE_SERVER_URL (default "/colyseus" on the same host; empty = offline-only build).
@@ -75,6 +76,45 @@ export async function joinRoom(code: string, name: string): Promise<GameTranspor
   }
 }
 
+/**
+ * The code of the room a reload of this tab left behind (the server keeps the seat for 15 s),
+ * '' if the code is unknown, or null if there is nothing to resume.
+ */
+export function resumableRoomCode(): string | null {
+  if (!onlineEnabled) return null;
+  return loadSeat(sessionSeatStorage())?.code ?? null;
+}
+
+export async function resumeRoom(): Promise<GameTransport> {
+  const saved = takeSeat();
+  if (!onlineEnabled || !saved) throw new RoomError('Nu există un joc de reluat.');
+  try {
+    return await connected(getClient().reconnect(saved.token));
+  } catch {
+    throw new RoomError('Nu te-ai mai putut reconecta la joc.');
+  }
+}
+
+/** Leaves the room a reload left behind for good (reconnects just to say so); failures are ignored. */
+export async function abandonResumableRoom(): Promise<void> {
+  const saved = takeSeat();
+  if (!onlineEnabled || !saved) return;
+  try {
+    const room = await withTimeout(getClient().reconnect(saved.token));
+    await room.leave(true);
+  } catch {
+    // the seat was already gone, or will be once the 15 s are up
+  }
+}
+
+/** The saved seat, forgotten at once: a failed attempt must not be retried by the next reload. */
+function takeSeat(): SavedSeat | null {
+  const storage = sessionSeatStorage();
+  const saved = loadSeat(storage);
+  saveSeat(storage, null);
+  return saved;
+}
+
 function getClient(): Client {
   client ??= new Client(serverUrl!);
   return client;
@@ -86,7 +126,9 @@ async function connected(pending: Promise<Room>): Promise<GameTransport> {
   if (!hasState(room)) {
     await withTimeout(new Promise<void>((resolve) => room.onStateChange.once(() => resolve())));
   }
-  return new ColyseusTransport(room, netSim);
+  // Room codes are the Colyseus room ids.
+  const onToken = (token: string | null) => saveSeat(sessionSeatStorage(), token ? { token, code: room.roomId } : null);
+  return new ColyseusTransport(room, netSim, onToken);
 }
 
 function hasState(room: Room): boolean {

@@ -35,6 +35,8 @@ export const RATES = {
   wsOpen: { burst: 30, perMinute: 60 },
   /** GET /rooms/:code. */
   roomStatus: { burst: 20, perMinute: 20 },
+  /** GET /status (the deploy's public check). */
+  status: { burst: 30, perMinute: 30 },
   /** Codes of rooms that do not exist (join, reconnect, /rooms/:code): makes guessing codes hopeless. */
   unknownCode: { burst: 20, perMinute: 4 },
   /** CSP violation reports written to the log, for the whole server. */

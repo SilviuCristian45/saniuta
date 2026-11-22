@@ -181,6 +181,15 @@ describe('M2: per-address limits, Origin and CORS', () => {
     expect(last!.body?.code).toBe(ERR_RATE_LIMITED);
   });
 
+  it('answers the public /status with nothing but ok, and refuses a flood of it', async () => {
+    const ip = freshIp();
+    const first = await http('GET', '/status', viaCaddy(ip));
+    expect(first.status).toBe(200);
+    expect(first.body).toEqual({ ok: true });
+    for (let i = 1; i < RATES.status.burst; i++) expect((await http('GET', '/status', viaCaddy(ip))).status).toBe(200);
+    expect((await http('GET', '/status', viaCaddy(ip))).status).toBe(429);
+  });
+
   it('refuses a flood of /rooms/:code', async () => {
     const real = (await createRoom(viaCaddy(freshIp()))).body!.roomId!;
     const ip = freshIp();

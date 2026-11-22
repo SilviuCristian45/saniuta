@@ -1,0 +1,65 @@
+# systemd unit for the Săniuța la vale game server, installed by deploy/setup.sh.
+# /opt/saniuta/current is a symlink to the active release (switched atomically by deploy/push.ps1).
+[Unit]
+Description=Săniuța la vale (Colyseus)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=saniuta
+Group=saniuta
+WorkingDirectory=/opt/saniuta/current/server
+ExecStart=/usr/bin/node /opt/saniuta/current/server/index.js
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=2570
+Environment=MAX_ROOMS=20
+# SQLite database (WAL) for the all-time leaderboard (stage 6; until then the server does not read DB_PATH
+# and the daily backup finds nothing to copy). /var/lib/saniuta belongs to the saniuta user and lives outside
+# /opt/saniuta, so deploys and rollbacks never touch it. node:sqlite needs no flag on Node >= 22.13.
+StateDirectory=saniuta
+StateDirectoryMode=0750
+Environment=DB_PATH=/var/lib/saniuta/leaderboard.db
+Restart=always
+RestartSec=3
+
+# Shared 1 GB VPS: keep the game in its own small box.
+MemoryMax=150M
+Environment="NODE_OPTIONS=--max-old-space-size=105 --enable-source-maps"
+
+# Hardening: the process reads its bundle, writes only its StateDirectory and listens on loopback.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+# Network only to/from loopback: Caddy connects from 127.0.0.1 and the
+# server never needs to reach out, so even a compromised process could not send data anywhere.
+# An app that calls external APIs needs these two loosened (and says why).
+IPAddressDeny=any
+IPAddressAllow=localhost
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectProc=invisible
+ProtectHostname=true
+ProtectClock=true
+ProtectKernelLogs=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RemoveIPC=true
+SystemCallArchitectures=native
+# A system call outside the usual service set fails with EPERM instead of killing Node.
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077
+# Not MemoryDenyWriteExecute: V8's JIT needs writable+executable memory.
+
+[Install]
+WantedBy=multi-user.target
