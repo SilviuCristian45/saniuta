@@ -82,4 +82,15 @@ describe('determinism', () => {
     }
     expect(numbersIn(state).filter(([, v]) => !Number.isSafeInteger(v))).toEqual([]);
   });
+
+  it('never holds -0, which the network turns into 0 (the client would no longer match the server)', () => {
+    const state = newMatch('seed-zero');
+    for (let i = 0; i < 6000 && state.phase !== 'finished'; i++) {
+      // Inputs that truncate to -0 too: -0 itself (JSON keeps it) and small negative fractions.
+      const inputs = humanInputs(state).map((inp, k) => (i % 7 === k ? { ...inp, steer: -0.4, throttle: -0 } : inp));
+      runTick(state, inputs);
+      const negativeZeros = numbersIn(state).filter(([, v]) => Object.is(v, -0));
+      if (negativeZeros.length > 0) expect({ tick: state.tick, negativeZeros }).toEqual({ tick: state.tick, negativeZeros: [] });
+    }
+  });
 });

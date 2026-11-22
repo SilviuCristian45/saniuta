@@ -289,7 +289,7 @@ export function botThink(state: GameState, id: string): BotThought | null {
   // so slow deciders do not swing from side to side. The heading has to go up for a target to the
   // left: steer < 0 (steer > 0 lowers the heading).
   const fullSteerError = Math.max(TUNING.turnRate * params.interval, MIN_FULL_STEER_ERROR);
-  let steer = clamp(-idiv(angleDiff(me.heading, desired) * INPUT_MAX, fullSteerError), -INPUT_MAX, INPUT_MAX);
+  let steer = clamp(-idiv(angleDiff(me.heading, desired) * INPUT_MAX, fullSteerError) || 0, -INPUT_MAX, INPUT_MAX);
   let throttle = speed < TUNING.pushMaxSpeed ? INPUT_MAX : 0;
   if (intent === 'blocked' && params.brakes && speed > TUNING.pushMaxSpeed) throttle = -INPUT_MAX;
 
@@ -298,7 +298,7 @@ export function botThink(state: GameState, id: string): BotThought | null {
   if (me.snowballs > 0 && me.throwCooldown === 0 && (target = throwTarget(state, me, params))) fire = roll(5) < params.throwChance;
 
   if (roll(2) < params.mistake) {
-    if (roll(3) % 2 === 0) steer = -steer;
+    if (roll(3) % 2 === 0) steer = -steer || 0; // never -0
     else steer = 0;
   }
   return { input: { seq: 0, steer, throttle, fire }, intent, targetX: tx, targetY: ty, targetId: fire && target ? target.id : '' };

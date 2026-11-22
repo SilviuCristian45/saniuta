@@ -42,7 +42,8 @@ export function currentTrack(state: Readonly<GameState>): Track {
 
 /** Normalizes one untrusted axis value to an integer in [-INPUT_MAX, INPUT_MAX]. */
 function axis(v: unknown): number {
-  return typeof v === 'number' && Number.isFinite(v) ? clamp(Math.trunc(v), -INPUT_MAX, INPUT_MAX) : 0;
+  // `|| 0`: -0 (sent as such, or truncated from -0.4) would become 0 on the wire.
+  return typeof v === 'number' && Number.isFinite(v) ? clamp(Math.trunc(v), -INPUT_MAX, INPUT_MAX) || 0 : 0;
 }
 
 /**
