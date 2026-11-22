@@ -1,6 +1,6 @@
 // Bots-only tournament over many seeds: points, run wins, finishes, times, crashes and snowball hits
 // per bot level, plus how long runs take, on one track or all of them.
-//   npm run balance -- --matches 20 --lineup usor,usor,mediu,mediu,greu,greu [--track 0|1|2|3|all] [--set gravity=32,turnRate=13]
+//   npm run balance -- --matches 20 --lineup usor,usor,mediu,mediu,greu,greu [--track 0|1|2|3|all] [--powerups on|off] [--set gravity=32,turnRate=13]
 import { parseArgs } from 'node:util';
 import {
   BOT_EASY,
@@ -26,6 +26,7 @@ const { values } = parseArgs({
     lineup: { type: 'string', default: 'usor,usor,mediu,mediu,greu,greu' },
     track: { type: 'string', default: 'all' },
     set: { type: 'string', default: '' }, // TUNING overrides: key=value,key=value
+    powerups: { type: 'string', default: 'on' },
   },
 });
 if (values.set) {
@@ -51,6 +52,7 @@ for (const trackId of tracks) {
   const time = [0, 0, 0];
   const crashes = [0, 0, 0];
   const hits = [0, 0, 0];
+  const used = [0, 0, 0];
   let winnerTicks = 0;
   let rounds = 0;
   for (let m = 0; m < Number(values.matches); m++) {
@@ -59,6 +61,7 @@ for (const trackId of tracks) {
     state.hostId = 'b0';
     state.roundsTotal = 3;
     setTrack(state, 'b0', trackId);
+    state.powerUps = values.powerups !== 'off';
     startMatch(state, 'b0');
     while (state.phase !== 'finished') {
       for (const e of runTick(state, [])) {
@@ -80,6 +83,7 @@ for (const trackId of tracks) {
       wins[p.botLevel]! += p.wins;
       crashes[p.botLevel]! += p.crashes;
       hits[p.botLevel]! += p.hits;
+      used[p.botLevel]! += p.powerUpsUsed;
     }
   }
   console.log(`\n${trackName(trackId)}: ${rounds} manșe, câștigătorul în medie ${(ticksToMs(winnerTicks / rounds) / 1000).toFixed(1)} s`);
@@ -89,7 +93,7 @@ for (const trackId of tracks) {
     const avg = finishes[l] ? (ticksToMs(time[l]! / finishes[l]!) / 1000).toFixed(1) : '-';
     const pct = runs[l] ? Math.round((100 * finishes[l]!) / runs[l]!) : 0;
     console.log(
-      `  ${BOT_LEVEL_NAMES[l]!.padEnd(6)} puncte ${per(points[l]!)}  victorii ${per(wins[l]!)}  ajunge ${String(pct).padStart(3)}%  timp ${avg.padStart(5)} s  răsturnări ${per(crashes[l]!)}  nimeriți ${per(hits[l]!)}   (per bot, per meci)`,
+      `  ${BOT_LEVEL_NAMES[l]!.padEnd(6)} puncte ${per(points[l]!)}  victorii ${per(wins[l]!)}  ajunge ${String(pct).padStart(3)}%  timp ${avg.padStart(5)} s  răsturnări ${per(crashes[l]!)}  nimeriți ${per(hits[l]!)}  power-up-uri ${per(used[l]!)}   (per bot, per meci)`,
     );
   }
 }

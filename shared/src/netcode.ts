@@ -14,17 +14,17 @@ export const MAX_PENDING_INPUTS = 90;
 /** An untrusted 'input' message as a SledInput, or null when it is malformed. */
 export function parseInput(msg: unknown): SledInput | null {
   if (typeof msg !== 'object' || msg === null) return null;
-  const { seq, steer, throttle, fire } = msg as Record<string, unknown>;
+  const { seq, steer, throttle, fire, use } = msg as Record<string, unknown>;
   if (typeof seq !== 'number' || !Number.isInteger(seq) || seq < 1 || seq > MAX_SEQ) return null;
   if (typeof steer !== 'number' || typeof throttle !== 'number') return null;
   // applyInput clamps and truncates the axes.
-  return { seq, steer, throttle, fire: fire === true };
+  return { seq, steer, throttle, fire: fire === true, use: use === true };
 }
 
 /**
  * Server side: every player's inputs wait here and one is applied per tick. A player who sends
  * faster than the server ticks (a burst after a lag spike) would build up latency, so beyond
- * INPUT_QUEUE_MAX the oldest input is dropped; a throw press in it moves to the next one.
+ * INPUT_QUEUE_MAX the oldest input is dropped; a throw or power-up press in it moves to the next one.
  * A tick without an input leaves the sled on its held steer/throttle.
  */
 export class InputQueue {
@@ -43,7 +43,7 @@ export class InputQueue {
     queue.push(input);
     while (queue.length > INPUT_QUEUE_MAX) {
       const dropped = queue.shift()!;
-      if (dropped.fire) queue[0] = { ...queue[0]!, fire: true };
+      if (dropped.fire || dropped.use) queue[0] = { ...queue[0]!, fire: queue[0]!.fire || dropped.fire, use: queue[0]!.use || dropped.use };
     }
   }
 
@@ -133,8 +133,8 @@ export class Predictor {
   }
 
   /** One client tick: numbers the input, applies it to the prediction and returns it for sending. */
-  advance(input: Omit<SledInput, 'seq'>): SledInput {
-    const numbered: SledInput = { seq: ++this.seq, steer: input.steer, throttle: input.throttle, fire: input.fire };
+  advance(input: Omit<SledInput, 'seq'>): Required<SledInput> {
+    const numbered: Required<SledInput> = { seq: ++this.seq, steer: input.steer, throttle: input.throttle, fire: input.fire, use: input.use === true };
     this.pending.push(numbered);
     if (this.pending.length > MAX_PENDING_INPUTS) this.pending.shift();
     if (this.predicted) runTick(this.predicted, [{ ...numbered, playerId: this.playerId }]);

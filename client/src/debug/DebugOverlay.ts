@@ -27,7 +27,7 @@ export class DebugOverlay {
     this.g = addWorld(scene.add.graphics().setDepth(DEPTH.debug));
     this.text = addHud(
       scene.add
-        .text(280, 14, '', { fontFamily: FONT, fontSize: '13px', color: '#9ff', backgroundColor: '#000a', padding: { x: 6, y: 4 } })
+        .text(280, 140, '', { fontFamily: FONT, fontSize: '13px', color: '#9ff', backgroundColor: '#000a', padding: { x: 6, y: 4 } })
         .setDepth(HUD_DEPTH.overlay + 5),
     );
   }
@@ -67,6 +67,7 @@ export class DebugOverlay {
         `viteză ${speedOf(p)}  heading ${p.heading}  steer ${p.steer} throttle ${p.throttle}`,
         `aer ${p.airTicks}/${p.airTotal}  răsturnat ${p.crashTicks}  grație ${p.graceTicks}  bulgări ${p.snowballs}`,
         `suprafață ${SURFACES[surfaceAt(track, p.x, p.y)]}  pantă ${slopeAt(track, p.y)}%  seq ${p.lastSeq}`,
+        state.powerUps ? `power-up ${p.powerUp}  ceară ${p.waxTicks}  ceai ${p.tea ? 'da' : 'nu'}  fular ${p.scarfTicks}  ceață ${p.fogTicks}` : '',
         net ? netLine(net) : '',
       ]
         .filter(Boolean)

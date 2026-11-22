@@ -7,9 +7,10 @@ export const ROOM_NAME = 'saniuta';
 
 /** What the browser sends; the message `type` is also the Colyseus message name. */
 export type ClientMessage =
-  | { type: 'input'; seq: number; steer: number; throttle: number; fire: boolean } // one per client tick
+  | { type: 'input'; seq: number; steer: number; throttle: number; fire: boolean; use: boolean } // one per client tick
   | { type: 'rounds'; rounds: number } // host, lobby: 3/5/7
   | { type: 'track'; trackId: number } // host, lobby: TRACK_BUNICII..TRACK_RANDOM
+  | { type: 'powerUps'; on: boolean } // host, lobby: gift boxes on the track or not
   | { type: 'addBot' } // host, lobby
   | { type: 'removeBot' }
   | { type: 'botLevel'; level: number } // host, lobby: level for bots added from now on

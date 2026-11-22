@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { ROW_LEN, type GameState, type Track } from '@saniuta/shared';
 import { COLORS, PLAYER_COLORS } from './colors';
-import { GAME_W, HUD_DEPTH } from './layout';
+import { FONT, GAME_W, HUD_DEPTH } from './layout';
 import type { Pose } from '../net/view';
 
 const WIDTH = 64;
@@ -10,10 +10,11 @@ export const MINIMAP_PAD = 10;
 /** Bends are drawn this many times wider than true scale, or the track would be a hair-thin line. */
 const X_STRETCH = 3;
 
-/** The whole track as a narrow strip at the side of the screen, with a dot for every sled. */
+/** The whole track as a narrow strip at the side of the screen, with a dot for every sled; someone's fog hides it. */
 export class Minimap {
   private readonly frame: Phaser.GameObjects.Graphics;
   private readonly dots: Phaser.GameObjects.Graphics;
+  private readonly fog: Phaser.GameObjects.Container;
   private readonly x0 = GAME_W - WIDTH - 12;
   private readonly scale: number;
 
@@ -42,6 +43,22 @@ export class Minimap {
     g.lineStyle(2, 0x1b2440, 1);
     g.lineBetween(this.x0, this.mapY(track.startY), this.x0 + WIDTH, this.mapY(track.startY));
     this.dots = add(scene.add.graphics().setDepth(HUD_DEPTH.text));
+
+    // Fog: grey clouds over the whole strip.
+    const clouds = scene.add.graphics();
+    const h = bottom - top + 2 * MINIMAP_PAD;
+    clouds.fillStyle(0x8d99ae, 0.92);
+    clouds.fillRoundedRect(this.x0 - 6, top - MINIMAP_PAD, WIDTH + 12, h, 10);
+    for (let i = 0, y = top - MINIMAP_PAD + 10; y < bottom + MINIMAP_PAD; i++, y += 26) {
+      clouds.fillStyle(i % 2 === 0 ? 0xc9d0da : 0xdde2e8, 0.95);
+      clouds.fillCircle(this.x0 + (i % 3) * 22 + 6, y, 18);
+      clouds.fillCircle(this.x0 + ((i + 1) % 3) * 22 + 4, y + 12, 14);
+    }
+    const label = scene.add
+      .text(this.x0 + WIDTH / 2, (top + bottom) / 2, 'CEAȚĂ', { fontFamily: FONT, fontSize: '15px', fontStyle: 'bold', color: '#ffffff', stroke: '#1b2440', strokeThickness: 4 })
+      .setOrigin(0.5)
+      .setAngle(-90);
+    this.fog = add(scene.add.container(0, 0, [clouds, label]).setDepth(HUD_DEPTH.text + 0.5).setVisible(false));
   }
 
   private mapX(x: number): number {
@@ -54,6 +71,13 @@ export class Minimap {
 
   update(state: Readonly<GameState>, poses: ReadonlyMap<string, Pose>, me: string): void {
     const g = this.dots.clear();
+    const fogTicks = state.phase === 'playing' ? (state.players[me]?.fogTicks ?? 0) : 0;
+    this.fog.setVisible(fogTicks > 0);
+    if (fogTicks > 0) {
+      // Thins out over its last half second; drifts a little meanwhile.
+      this.fog.setAlpha(Math.min(1, fogTicks / 15)).setX(Math.sin(fogTicks / 7) * 3);
+      return;
+    }
     const players = Object.values(state.players).filter((p) => p.racing);
     // Others first, the player's own dot on top.
     players.sort((a, b) => Number(a.id === me) - Number(b.id === me));
@@ -74,5 +98,6 @@ export class Minimap {
   destroy(): void {
     this.frame.destroy();
     this.dots.destroy();
+    this.fog.destroy();
   }
 }

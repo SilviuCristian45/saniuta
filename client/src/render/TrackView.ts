@@ -39,6 +39,8 @@ export class TrackView {
   private readonly chunks: Chunk[] = [];
   /** Pile images by pile index (hidden while a pile is gone). */
   private readonly piles: Phaser.GameObjects.Image[] = [];
+  /** Gift box images by index (shown only with power-ups on, hidden while a box is gone). */
+  private readonly gifts: Phaser.GameObjects.Image[] = [];
   private readonly lights: Phaser.GameObjects.Image[] = [];
 
   constructor(
@@ -72,9 +74,14 @@ export class TrackView {
       this.piles.push(img);
       this.place(img, img.y);
     });
+    track.gifts.forEach((gift) => {
+      const img = this.scene.add.image(px(gift.x), px(gift.y), TEX.gift).setDepth(DEPTH.piles);
+      this.gifts.push(img);
+      this.place(img, img.y);
+    });
   }
 
-  /** Shows the chunks near the camera's view, hides the rest; piles follow the state. */
+  /** Shows the chunks near the camera's view, hides the rest; piles and gift boxes follow the state. */
   update(view: Phaser.Geom.Rectangle, state: Readonly<GameState>, time: number): void {
     const margin = 300;
     for (const chunk of this.chunks) {
@@ -86,6 +93,13 @@ export class TrackView {
     this.piles.forEach((img, i) => {
       if (!img.visible && (state.pileTimers[i] ?? 0) === 0 && this.chunkVisible(img.y)) img.setVisible(true);
       else if (img.visible && (state.pileTimers[i] ?? 0) > 0) img.setVisible(false);
+    });
+    this.gifts.forEach((img, i) => {
+      const there = state.powerUps && (state.giftTimers[i] ?? 0) === 0;
+      if (!img.visible && there && this.chunkVisible(img.y)) img.setVisible(true);
+      else if (img.visible && !there) img.setVisible(false);
+      // A gift box sways a little, so it catches the eye.
+      if (img.visible) img.setRotation(Math.sin(time / 300 + i) * 0.12).setScale(1 + 0.06 * Math.sin(time / 220 + i * 2));
     });
     // Cabin and lamp lights breathe a little.
     const flicker = 0.85 + 0.15 * Math.sin(time / 400);

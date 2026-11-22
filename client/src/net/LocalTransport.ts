@@ -10,6 +10,7 @@ import {
   runTick,
   setBotLevel,
   setDefaultBotLevel,
+  setPowerUps,
   setRounds,
   setTrack,
   skipBotRound,
@@ -29,6 +30,8 @@ export interface LocalOptions {
   botLevel?: number;
   rounds: number;
   trackId: number;
+  /** Gift boxes on the track (the lobby option); on when left out. */
+  powerUps?: boolean;
   seed: string;
   /** Start run 1 right away (test URL options) instead of waiting in the lobby. */
   autoStart: boolean;
@@ -47,6 +50,7 @@ export class LocalTransport implements GameTransport {
   private steer = 0;
   private throttle = 0;
   private fireLatched = false;
+  private useLatched = false;
   private seq = 0;
   private acc = 0;
   private paused = false;
@@ -60,6 +64,7 @@ export class LocalTransport implements GameTransport {
     for (let i = 0; i < opts.bots; i++) this.addBot();
     setRounds(this.state, this.playerId, opts.rounds);
     setTrack(this.state, this.playerId, opts.trackId);
+    if (opts.powerUps !== undefined) setPowerUps(this.state, this.playerId, opts.powerUps);
     if (opts.autoStart) startMatch(this.state, this.playerId);
   }
 
@@ -71,11 +76,13 @@ export class LocalTransport implements GameTransport {
     this.steer = input.steer;
     this.throttle = input.throttle;
     if (input.fire) this.fireLatched = true;
+    if (input.use) this.useLatched = true;
   }
 
   send(msg: RoomMessage): void {
     if (msg.type === 'rounds') setRounds(this.state, this.playerId, msg.rounds);
     else if (msg.type === 'track') setTrack(this.state, this.playerId, msg.trackId);
+    else if (msg.type === 'powerUps') setPowerUps(this.state, this.playerId, msg.on);
     else if (msg.type === 'addBot') this.addBot();
     else if (msg.type === 'removeBot') removeBot(this.state, this.playerId);
     else if (msg.type === 'botLevel') setDefaultBotLevel(this.state, this.playerId, msg.level);
@@ -130,7 +137,7 @@ export class LocalTransport implements GameTransport {
     addBot(this.state, this.playerId, `bot${++this.botCounter}`);
   }
 
-  /** One fixed step: this tick's input (throw consumed) for the player, bots decide inside runTick. */
+  /** One fixed step: this tick's input (throw and power-up presses consumed) for the player, bots decide inside runTick. */
   private tick(): void {
     const input: PlayerInput = {
       playerId: this.playerId,
@@ -138,8 +145,10 @@ export class LocalTransport implements GameTransport {
       steer: this.steer,
       throttle: this.throttle,
       fire: this.fireLatched,
+      use: this.useLatched,
     };
     this.fireLatched = false;
+    this.useLatched = false;
     this.emit(runTick(this.state, [input]));
   }
 

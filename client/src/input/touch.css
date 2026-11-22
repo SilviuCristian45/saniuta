@@ -13,7 +13,8 @@
 }
 
 .touch-pad,
-.touch-fire {
+.touch-fire,
+.touch-power {
   position: absolute;
   pointer-events: auto;
   touch-action: none;
@@ -108,4 +109,50 @@
 .touch-controls.left-handed .touch-fire {
   right: auto;
   left: calc(env(safe-area-inset-left, 0px) + 26px);
+}
+
+/* Power-up button: smaller, beside the snowball button (inward), a little higher; the icon of the one held. */
+.touch-power {
+  --size: min(22vh, 92px);
+  --fire: min(32vh, 130px);
+  width: var(--size);
+  height: var(--size);
+  right: calc(env(safe-area-inset-right, 0px) + 26px + var(--fire) + 14px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 26px + var(--fire) * 0.45);
+  border-radius: 50%;
+  border: 3px solid rgba(255, 214, 102, 0.95);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(60, 40, 90, 0.55);
+  box-shadow: 0 0 16px rgba(255, 214, 102, 0.55);
+  transition: transform 0.06s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.touch-power[hidden] {
+  display: none;
+}
+
+.touch-power img {
+  width: 86%;
+  height: 86%;
+  pointer-events: none;
+}
+
+.touch-power.empty {
+  opacity: 0.4;
+  box-shadow: none;
+  border-color: rgba(220, 236, 255, 0.6);
+}
+
+.touch-power.pressed {
+  transform: scale(0.9);
+}
+
+.touch-controls.left-handed .touch-power {
+  right: auto;
+  left: calc(env(safe-area-inset-left, 0px) + 26px + var(--fire) + 14px);
 }

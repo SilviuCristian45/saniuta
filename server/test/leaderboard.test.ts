@@ -98,6 +98,7 @@ describe('which runs count', () => {
     return {
       code: 'TEST01',
       trackId,
+      powerUps: false,
       players: {
         a: p('a', {}),
         b: p('b', { finishTicks: 2100 }),
@@ -118,8 +119,9 @@ describe('which runs count', () => {
     expect(runResult(s, new Date(), all)!.times.map((t) => t.playerId)).toEqual(['a']);
   });
 
-  it(`needs two humans who played for real, and never a random track`, () => {
+  it(`needs two humans who played for real, and never a random track or power-ups`, () => {
     expect(runResult(state(TRACK_RANDOM), new Date(), all)).toBeNull();
+    expect(runResult({ ...state(TRACK_LUPULUI), powerUps: true }, new Date(), all)).toBeNull();
     // Only "a" really rode: one human is not enough, however many bots.
     expect(runResult(state(TRACK_LUPULUI), new Date(), (id) => id === 'a')).toBeNull();
     // Two who rode, but the one who finished did not: nothing to save.
@@ -128,7 +130,7 @@ describe('which runs count', () => {
 });
 
 describe('the room saves counted runs', () => {
-  async function setUp(): Promise<{ host: ClientRoom; guest: ClientRoom; room: SaniutaRoom; game: GameState }> {
+  async function setUp(powerUps = false): Promise<{ host: ClientRoom; guest: ClientRoom; room: SaniutaRoom; game: GameState }> {
     const host = await colyseus.sdk.create(ROOM_NAME, { name: 'Ana' });
     const room = colyseus.getRoomById<SaniutaRoom>(host.roomId);
     const guest = await colyseus.sdk.joinById(host.roomId, { name: 'Ion' });
@@ -141,6 +143,8 @@ describe('the room saves counted runs', () => {
     };
     host.send('track', { trackId: TRACK_LUPULUI });
     await until(() => game.trackId === TRACK_LUPULUI);
+    host.send('powerUps', { on: powerUps });
+    await until(() => game.powerUps === powerUps);
     host.send('addBot');
     await until(() => Object.keys(game.players).length === 3);
     host.send('start');
@@ -178,6 +182,13 @@ describe('the room saves counted runs', () => {
   it('a human who let the sled slide on its own does not count, and alone the other is not enough', async () => {
     const { room, game } = await setUp();
     await finishRun(room, game, (id) => game.players[id]!.name === 'Ana');
+    expect(board.top()[String(TRACK_LUPULUI)]).toEqual([]);
+  });
+
+  it('a run with power-ups on is never saved', async () => {
+    const { room, game } = await setUp(true);
+    await finishRun(room, game, () => true);
+    expect(game.phase).toBe('results');
     expect(board.top()[String(TRACK_LUPULUI)]).toEqual([]);
   });
 

@@ -1,7 +1,14 @@
 import Phaser from 'phaser';
 import {
   DOWNHILL,
+  OBSTACLE_GIANT,
   OBSTACLE_ROCK,
+  POWER_FOG,
+  POWER_GIANT,
+  POWER_NONE,
+  POWER_SCARF,
+  POWER_TEA,
+  POWER_WAX,
   SURFACE_ICE,
   TUNING,
   applyGameTuning,
@@ -26,15 +33,17 @@ import { TouchInput } from '../input/TouchInput';
 import type { GameTransport } from '../net/GameTransport';
 import { EMPTY_VIEW, type RenderView } from '../net/view';
 import { COLORS, PLAYER_COLORS, hexColor } from '../render/colors';
+import { POWER_HINTS, POWER_NAMES } from '../render/format';
 import { floatText, iceSparks, snowBurst, turnSpray } from '../render/fx';
 import { Hud } from '../render/Hud';
-import { DEPTH, FONT, GAME_H, GAME_W, HUD_DEPTH, LOOK_AHEAD, ZOOM_FAST, ZOOM_SLOW, px } from '../render/layout';
+import { DEPTH, FONT, GAME_H, GAME_W, HUD_DEPTH, LOOK_AHEAD, ZOOM_FAST, ZOOM_SLOW, px, sortDepth } from '../render/layout';
 import { MINIMAP_PAD, Minimap } from '../render/Minimap';
 import { Podium } from '../render/Podium';
 import { ResultsPanel } from '../render/ResultsPanel';
 import { SledView, toRadians } from '../render/SledView';
 import { Snowfall } from '../render/Snowfall';
 import { ensureTextures, TEX } from '../render/textures';
+import type { SfxName } from '../audio/sfx';
 import { TrackView } from '../render/TrackView';
 import { Trails } from '../render/Trails';
 import { getSetting, reducedEffects, vibrate } from '../settings';
@@ -59,6 +68,15 @@ export interface GameSceneData {
 }
 
 type Add = <T extends Phaser.GameObjects.GameObject>(obj: T) => T;
+
+/** The sound of each power-up being used. */
+const POWER_SFX: Record<number, SfxName> = {
+  [POWER_WAX]: 'ceara',
+  [POWER_TEA]: 'ceai',
+  [POWER_GIANT]: 'urias',
+  [POWER_SCARF]: 'fular',
+  [POWER_FOG]: 'ceata',
+};
 
 /** Renders the shared GameState and forwards local input; knows nothing about where the state comes from. */
 export class GameScene extends Phaser.Scene {
@@ -88,6 +106,9 @@ export class GameScene extends Phaser.Scene {
   private pauseText!: Phaser.GameObjects.Text;
   private readonly sleds = new Map<string, SledView>();
   private balls: Phaser.GameObjects.Image[] = [];
+  private giants: Phaser.GameObjects.Image[] = [];
+  /** Power-up icons as image URLs for the touch button, made once per kind. */
+  private readonly powerIcons = new Map<number, string>();
   private view: RenderView = EMPTY_VIEW;
   private snapCamera = true;
   /** "Sigur ieși?" while open. */
@@ -107,6 +128,7 @@ export class GameScene extends Phaser.Scene {
     // Phaser reuses the scene instance on every start: forget the previous match's views.
     this.sleds.clear();
     this.balls = [];
+    this.giants = [];
     this.view = EMPTY_VIEW;
     this.trackView = undefined;
     this.trackKey = '';
@@ -155,7 +177,7 @@ export class GameScene extends Phaser.Scene {
 
     this.trails = new Trails(this, this.addWorld, reduced ? 90 : 320);
     this.snowfall = new Snowfall(this, this.addHud, reduced ? 30 : 110);
-    this.hud = new Hud(this, this.addHud, (label) => playSfx(label === 'HAI!' ? 'hai' : 'numaratoare'));
+    this.hud = new Hud(this, this.addHud, (label) => playSfx(label === 'HAI!' ? 'hai' : 'numaratoare'), !isTouch);
     this.results = new ResultsPanel(this, this.addHud, () => this.onContinue());
     this.pauseText = this.addHud(
       this.add
@@ -243,6 +265,7 @@ export class GameScene extends Phaser.Scene {
     this.view = this.transport.view();
     this.touch?.setVisible(state.phase === 'playing' && !!me?.racing && !me.finished && !this.transport.isPaused());
     if (me) this.touch?.setSnowballs(me.snowballs);
+    if (me) this.touch?.setPowerUp(state.powerUps, me.powerUp > POWER_NONE ? this.powerIcon(me.powerUp) : null);
 
     this.followCamera(state, delta);
     const worldView = this.cameras.main.worldView;
@@ -339,9 +362,29 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private powerIcon(kind: number): string {
+    let url = this.powerIcons.get(kind);
+    if (!url) {
+      url = this.textures.getBase64(TEX.power(kind));
+      this.powerIcons.set(kind, url);
+    }
+    return url;
+  }
+
   private syncBalls(): void {
-    const balls = this.view.balls;
+    const balls = this.view.balls.filter((b) => !b.giant);
+    const giants = this.view.balls.filter((b) => b.giant);
     while (this.balls.length < balls.length) this.balls.push(this.addWorld(this.add.image(0, 0, TEX.ball).setDepth(DEPTH.balls)));
+    while (this.giants.length < giants.length) this.giants.push(this.addWorld(this.add.image(0, 0, TEX.giant)));
+    // The giant snowball rolls on the snow: y-sorted with the sleds, turning as it goes.
+    this.giants.forEach((img, i) => {
+      const b = giants[i];
+      img.setVisible(!!b);
+      if (!b) return;
+      const x = px(b.x);
+      const y = px(b.y);
+      img.setPosition(x, y).setDepth(sortDepth(y)).setRotation(y / 18);
+    });
     this.balls.forEach((img, i) => {
       const b = balls[i];
       img.setVisible(!!b);
@@ -409,8 +452,9 @@ export class GameScene extends Phaser.Scene {
     };
     for (const e of events) {
       if (e.type === 'crash') {
-        snowBurst(this, this.addWorld, px(e.x), px(e.y), reducedEffects() ? 5 : 12, 40);
-        playSfx(e.obstacle === OBSTACLE_ROCK ? 'piatra' : 'brad', this.volumeAt(px(e.x), px(e.y), e.playerId));
+        const giant = e.obstacle === OBSTACLE_GIANT;
+        snowBurst(this, this.addWorld, px(e.x), px(e.y), (reducedEffects() ? 5 : 12) * (giant ? 2 : 1), giant ? 70 : 40);
+        playSfx(giant ? 'strivit' : e.obstacle === OBSTACLE_ROCK ? 'piatra' : 'brad', this.volumeAt(px(e.x), px(e.y), e.playerId));
         if (e.playerId === me) {
           shake(220, 0.008);
           vibrate(120);
@@ -429,6 +473,31 @@ export class GameScene extends Phaser.Scene {
       } else if (e.type === 'pickup') {
         const pos = this.posOf(e.playerId);
         if (pos && e.playerId === me) floatText(this, this.addWorld, pos.x, pos.y - 30, '+1 bulgăre', '#ffffff');
+      } else if (e.type === 'splat' && e.big) {
+        // The giant snowball smashed on a tree or a rock.
+        snowBurst(this, this.addWorld, px(e.x), px(e.y), reducedEffects() ? 8 : 20, 60);
+        playSfx('brad', this.volumeAt(px(e.x), px(e.y), e.byId));
+      } else if (e.type === 'gift') {
+        const pos = this.posOf(e.playerId);
+        if (pos) playSfx('cadou', this.volumeAt(pos.x, pos.y, e.playerId));
+        if (pos && e.playerId === me) floatText(this, this.addWorld, pos.x, pos.y - 34, `${POWER_NAMES[e.power]}!\n${POWER_HINTS[e.power]}`, '#ffd166');
+      } else if (e.type === 'power') {
+        const pos = this.posOf(e.playerId);
+        // Fog is everybody's business: full volume for those it covers.
+        const fogged = e.power === POWER_FOG && e.playerId !== me && !!state.players[me]?.racing && !state.players[me]?.finished;
+        if (pos) playSfx(POWER_SFX[e.power] ?? 'cadou', fogged ? 1 : this.volumeAt(pos.x, pos.y, e.playerId));
+        if (fogged) {
+          const mine = this.posOf(me);
+          if (mine) floatText(this, this.addWorld, mine.x, mine.y - 34, 'Ceață! Fără hartă', '#dde2e8');
+        }
+        if (pos && e.power === POWER_WAX) snowBurst(this, this.addWorld, pos.x, pos.y, reducedEffects() ? 3 : 8, 30);
+      } else if (e.type === 'shield') {
+        playSfx('scut', this.volumeAt(px(e.x), px(e.y), e.playerId));
+        const pos = this.posOf(e.playerId);
+        if (pos && (e.playerId === me || !reducedEffects())) {
+          floatText(this, this.addWorld, pos.x, pos.y - 34, e.power === POWER_TEA ? 'Salvat de ceai!' : 'Fularul te-a apărat!', '#7cf29a');
+        }
+        if (e.power === POWER_SCARF) snowBurst(this, this.addWorld, px(e.x), px(e.y), reducedEffects() ? 3 : 7, 20);
       } else if (e.type === 'splat') {
         snowBurst(this, this.addWorld, px(e.x), px(e.y), reducedEffects() ? 4 : 9, 22);
         if (e.playerId) playSfx('lovit', e.byId === me ? 1 : this.volumeAt(px(e.x), px(e.y), e.playerId));

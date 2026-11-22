@@ -26,7 +26,7 @@ import {
 } from '../src';
 import { makeRace, px } from './helpers';
 
-const input = (seq: number, extra: Partial<SledInput> = {}): SledInput => ({ seq, steer: 0, throttle: 0, fire: false, ...extra });
+const input = (seq: number, extra: Partial<SledInput> = {}): SledInput => ({ seq, steer: 0, throttle: 0, fire: false, use: false, ...extra });
 
 describe('state keys', () => {
   it('list every field of GameState and PlayerState', () => {
@@ -82,6 +82,16 @@ describe('InputQueue', () => {
     for (let seq = 2; seq <= INPUT_QUEUE_MAX + 1; seq++) q.push('a', input(seq));
     expect(q.size('a')).toBe(INPUT_QUEUE_MAX);
     expect(q.take()[0]).toMatchObject({ seq: 2, fire: true });
+  });
+
+  it('keeps a power-up press from dropped inputs too, together with a throw', () => {
+    const q = new InputQueue();
+    q.push('a', input(1, { fire: true }));
+    q.push('a', input(2, { use: true }));
+    for (let seq = 3; seq <= INPUT_QUEUE_MAX + 2; seq++) q.push('a', input(seq));
+    expect(q.take()[0]).toMatchObject({ seq: 3, fire: true, use: true });
+    expect(parseInput({ seq: 1, steer: 0, throttle: 0, fire: false, use: true })?.use).toBe(true);
+    expect(parseInput({ seq: 1, steer: 0, throttle: 0, fire: false, use: 1 })?.use).toBe(false);
   });
 
   it('ignores repeated or out-of-order inputs', () => {

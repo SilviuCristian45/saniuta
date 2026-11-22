@@ -10,6 +10,7 @@ import {
 import { clamp } from './fixed';
 import { computeStandings, sortedPlayers, startRound } from './match';
 import { canCollide, collideSleds, grounded, hitObstacles, keepOnTrack, rideFinished, rideSled, speedOf, tryJump } from './physics';
+import { pickUpGift, tickGifts, tickPowerUps, usePowerUp } from './powerups';
 import { clearBalls, pickUpSnow, throwSnowball, tickPiles, updateBalls } from './snowballs';
 import { getTrack, type Track } from './track';
 import type { GameEvent, GameState, PlayerInput, PlayerState } from './types';
@@ -49,7 +50,8 @@ function axis(v: unknown): number {
 /**
  * The only way players affect the game: steer and throttle are held until the next input, a throw
  * press is latched and consumed on the next tick. Inputs of sleds not racing (or finished) still
- * advance lastSeq so the client can drop them from its prediction buffer.
+ * advance lastSeq so the client can drop them from its prediction buffer. A power-up press is latched
+ * the same way.
  */
 export function applyInput(state: GameState, input: PlayerInput): void {
   const p = state.players[input.playerId];
@@ -59,6 +61,7 @@ export function applyInput(state: GameState, input: PlayerInput): void {
   p.steer = axis(input.steer);
   p.throttle = axis(input.throttle);
   if (input.fire === true) p.firePressed = true;
+  if (input.use === true) p.usePressed = true;
 }
 
 /** Advances the simulation by one fixed tick. Returns what happened, for sound/effects. */
@@ -81,7 +84,10 @@ export function step(state: GameState): GameEvent[] {
   const racers = sortedPlayers(state).filter((p) => p.racing);
   // During the countdown held input is kept for HAI!, but nobody moves and throws are dropped.
   if (state.roundTick <= COUNTDOWN_TICKS) {
-    for (const p of racers) p.firePressed = false;
+    for (const p of racers) {
+      p.firePressed = false;
+      p.usePressed = false;
+    }
     return events;
   }
   const race = raceTicks(state.roundTick);
@@ -89,11 +95,14 @@ export function step(state: GameState): GameEvent[] {
 
   const track = currentTrack(state);
   tickPiles(state);
+  tickGifts(state);
   for (const p of racers) {
+    tickPowerUps(p);
     if (p.finished) {
       rideFinished(p);
       continue;
     }
+    usePowerUp(state, racers, p, events);
     throwSnowball(state, p, events);
     rideSled(p, track, events);
   }
@@ -108,6 +117,7 @@ export function step(state: GameState): GameEvent[] {
       hitObstacles(p, track, events);
       tryJump(p, track, events);
       pickUpSnow(state, track, p, events);
+      pickUpGift(state, track, racers, p, events);
     }
     keepOnTrack(p, track);
     if (!p.finished) countStats(p);
@@ -153,6 +163,7 @@ function finish(state: GameState, p: PlayerState, race: number, events: GameEven
   p.steer = 0;
   p.throttle = 0;
   p.firePressed = false;
+  p.usePressed = false;
   events.push({ type: 'finish', playerId: p.id, place: p.place, ticks: race });
   if (p.place === 1) state.firstFinishTick = state.roundTick;
 }
@@ -169,6 +180,7 @@ function endRun(state: GameState, events: GameEvent[]): void {
     p.steer = 0;
     p.throttle = 0;
     p.firePressed = false;
+    p.usePressed = false;
   }
   clearBalls(state);
   const order = racers.sort((a, b) => a.place - b.place).map((p) => p.id);

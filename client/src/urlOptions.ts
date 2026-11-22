@@ -6,7 +6,7 @@ import type { NetSimOptions } from './net/LagLine';
 export const params = new URLSearchParams(window.location.search);
 
 /** Test options that skip the intro and menus and start a local match at once. */
-const QUICK_KEYS = ['bots', 'rounds', 'track', 'seed', 'botlevel', 'tune', 'debug'];
+const QUICK_KEYS = ['bots', 'rounds', 'track', 'seed', 'botlevel', 'powerups', 'tune', 'debug'];
 /** ?online (implied by ?lag, ?jitter and an invite ?room=) keeps the normal menus, so ?debug applies to online games. */
 const keepMenus = ['online', 'lag', 'jitter', 'room'].some((key) => params.has(key));
 export const quickStart = !keepMenus && QUICK_KEYS.some((key) => params.has(key));
@@ -33,6 +33,9 @@ const LEVELS: Record<string, number> = { usor: BOT_EASY, mediu: BOT_MEDIUM, greu
 
 /** ?botlevel=usor|mediu|greu (default: the room default). */
 export const quickBotLevel: number | undefined = LEVELS[params.get('botlevel') ?? ''];
+
+/** ?powerups=0 turns the gift boxes off (default on, as in the lobby). */
+export const quickPowerUps = params.get('powerups') !== '0';
 
 function clampInt(raw: string | null, lo: number, hi: number, fallback: number): number {
   const v = Math.trunc(Number(raw));

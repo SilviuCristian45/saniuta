@@ -1,6 +1,6 @@
-import { FP, TICK_RATE, ticksToMs } from '@saniuta/shared';
+import { FP, POWER_FOG, POWER_GIANT, POWER_SCARF, POWER_TEA, POWER_WAX, TICK_RATE, ticksToMs } from '@saniuta/shared';
 
-// Numbers as the HUD and the end screens show them (no Phaser: shared with client/test).
+// Numbers and names as the HUD and the end screens show them (no Phaser: shared with client/test).
 
 /** m:ss.d for a run time in ticks. */
 export function formatTime(ticks: number): string {
@@ -20,3 +20,21 @@ export function kmh(speed: number): number {
 export function ordinal(place: number): string {
   return place === 1 ? 'primul' : `al ${place}-lea`;
 }
+
+/** Power-up names as the game shows them (POWER_WAX..POWER_FOG). */
+export const POWER_NAMES: Record<number, string> = {
+  [POWER_WAX]: 'Ceară pe tălpici',
+  [POWER_TEA]: 'Ceai fierbinte',
+  [POWER_GIANT]: 'Bulgăre uriaș',
+  [POWER_SCARF]: 'Fular magic',
+  [POWER_FOG]: 'Ceață',
+};
+
+/** What each one does, in a few words (shown when it is picked up). */
+export const POWER_HINTS: Record<number, string> = {
+  [POWER_WAX]: 'mai repede 3 s',
+  [POWER_TEA]: 'nu te răstorni o dată',
+  [POWER_GIANT]: 'răstoarnă pe cine prinde',
+  [POWER_SCARF]: 'bulgării nu te ating 4 s',
+  [POWER_FOG]: 'ceilalți pierd harta 4 s',
+};

@@ -28,7 +28,7 @@ export function snowBurst(scene: Phaser.Scene, add: AddToWorld, x: number, y: nu
 export function floatText(scene: Phaser.Scene, add: AddToWorld, x: number, y: number, text: string, color: string): void {
   const t = add(
     scene.add
-      .text(x, y, text, { fontFamily: "'Trebuchet MS', sans-serif", fontSize: '20px', fontStyle: 'bold', color, stroke: '#141b33', strokeThickness: 5 })
+      .text(x, y, text, { fontFamily: "'Trebuchet MS', sans-serif", fontSize: '20px', fontStyle: 'bold', color, stroke: '#141b33', strokeThickness: 5, align: 'center' })
       .setOrigin(0.5)
       .setDepth(DEPTH.labels),
   );

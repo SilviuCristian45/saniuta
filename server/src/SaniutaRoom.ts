@@ -28,6 +28,7 @@ import {
   setConnected,
   setDefaultBotLevel,
   setRounds,
+  setPowerUps,
   setTrack,
   skipBotRound,
   startMatch,
@@ -133,6 +134,9 @@ export class SaniutaRoom extends Room<{ state: RoomState }> {
     });
     this.onMessage('track', (client, msg: { trackId?: unknown }) => {
       if (typeof msg?.trackId === 'number') setTrack(this.game, client.sessionId, msg.trackId);
+    });
+    this.onMessage('powerUps', (client, msg: { on?: unknown }) => {
+      if (typeof msg?.on === 'boolean') setPowerUps(this.game, client.sessionId, msg.on);
     });
     this.onMessage('addBot', (client) => {
       addBot(this.game, client.sessionId, `bot${++this.botCounter}`);

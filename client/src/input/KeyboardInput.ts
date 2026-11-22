@@ -5,14 +5,16 @@ import type { InputSource, RideInput } from './InputSource';
 
 const K = Phaser.Input.Keyboard.KeyCodes;
 
-/** Left/right (A/D) steer, up (W) kicks off, down (S) brakes, Space throws a snowball. */
+/** Left/right (A/D) steer, up (W) kicks off, down (S) brakes, Space throws a snowball, E uses the power-up. */
 export class KeyboardInput implements InputSource {
   private readonly left: Phaser.Input.Keyboard.Key[];
   private readonly right: Phaser.Input.Keyboard.Key[];
   private readonly up: Phaser.Input.Keyboard.Key[];
   private readonly down: Phaser.Input.Keyboard.Key[];
   private readonly fireKey: Phaser.Input.Keyboard.Key;
+  private readonly useKey: Phaser.Input.Keyboard.Key;
   private fireQueued = false;
+  private useQueued = false;
 
   constructor(private readonly keyboard: Phaser.Input.Keyboard.KeyboardPlugin) {
     const add = (...codes: number[]) => codes.map((code) => keyboard.addKey(code, true));
@@ -24,6 +26,10 @@ export class KeyboardInput implements InputSource {
     this.fireKey.on('down', () => {
       if (!isTyping()) this.fireQueued = true;
     });
+    this.useKey = keyboard.addKey(K.E, true);
+    this.useKey.on('down', () => {
+      if (!isTyping()) this.useQueued = true;
+    });
   }
 
   poll(): RideInput | null {
@@ -31,17 +37,21 @@ export class KeyboardInput implements InputSource {
     const steer = (held(this.right) - held(this.left)) * INPUT_MAX;
     const throttle = (held(this.up) - held(this.down)) * INPUT_MAX;
     const fire = this.fireQueued;
+    const use = this.useQueued;
     this.fireQueued = false;
-    if (isTyping() || (steer === 0 && throttle === 0 && !fire)) return null;
-    return { steer, throttle, fire };
+    this.useQueued = false;
+    if (isTyping() || (steer === 0 && throttle === 0 && !fire && !use)) return null;
+    return { steer, throttle, fire, use };
   }
 
   releaseAll(): void {
     this.fireQueued = false;
+    this.useQueued = false;
     this.keyboard.resetKeys();
   }
 
   destroy(): void {
     this.fireKey.removeAllListeners();
+    this.useKey.removeAllListeners();
   }
 }

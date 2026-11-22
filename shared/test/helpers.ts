@@ -9,12 +9,13 @@ export type SledSetup = Partial<PlayerState> & { id: string };
  * A run in progress right after the countdown (the next step is the first racing tick) on a real
  * track, with the given sleds placed exactly. Sleds default to standing still where startRound put them.
  */
-export function makeRace(sleds: SledSetup[], opts: { seed?: string; rounds?: number; trackId?: number } = {}): GameState {
+export function makeRace(sleds: SledSetup[], opts: { seed?: string; rounds?: number; trackId?: number; powerUps?: boolean } = {}): GameState {
   const state = createGameState({ code: 'TEST', seed: opts.seed ?? 'test' });
   for (const s of sleds) addPlayer(state, s.id, s.name ?? s.id, s.isBot ?? false, s.botLevel);
   state.hostId = sleds[0]!.id;
   state.roundsTotal = opts.rounds ?? 3;
   setTrack(state, sleds[0]!.id, opts.trackId ?? 0);
+  if (opts.powerUps !== undefined) state.powerUps = opts.powerUps;
   startMatch(state, sleds[0]!.id);
   for (const s of sleds) Object.assign(state.players[s.id]!, s);
   state.roundTick = COUNTDOWN_TICKS;
@@ -31,6 +32,7 @@ export function run(state: GameState, ticks: number, inputs: Record<string, Part
       steer: inp.steer ?? 0,
       throttle: inp.throttle ?? 0,
       fire: inp.fire ?? false,
+      use: inp.use ?? false,
     }));
     events.push(...runTick(state, list));
   }
@@ -45,6 +47,7 @@ export interface FlatTrackOptions {
   ramps?: Ramp[];
   patches?: Patch[];
   piles?: Pile[];
+  gifts?: Pile[];
 }
 
 /** A straight synthetic track (center x = 0) for exact physics tests, bucketed like a generated one. */
@@ -65,21 +68,25 @@ export function flatTrack(opts: FlatTrackOptions = {}): Track {
     ramps: opts.ramps ?? [],
     patches: opts.patches ?? [],
     piles: opts.piles ?? [],
+    gifts: opts.gifts ?? [],
     rowObstacles: [],
     rowRamps: [],
     rowPatches: [],
     rowPiles: [],
+    rowGifts: [],
   };
   for (let r = 0; r < rowCount; r++) {
     track.rowObstacles.push([]);
     track.rowRamps.push([]);
     track.rowPatches.push([]);
     track.rowPiles.push([]);
+    track.rowGifts.push([]);
   }
   const row = (y: number) => Math.floor(y / ROW_LEN);
   track.obstacles.forEach((o, i) => track.rowObstacles[row(o.y)]!.push(i));
   track.ramps.forEach((r, i) => track.rowRamps[row(Math.trunc((r.y0 + r.y1) / 2))]!.push(i));
   track.piles.forEach((p, i) => track.rowPiles[row(p.y)]!.push(i));
+  track.gifts.forEach((g, i) => track.rowGifts[row(g.y)]!.push(i));
   track.patches.forEach((p, i) => {
     for (let r = row(p.y0); r < Math.min(rowCount, row(p.y1 - 1) + 1); r++) track.rowPatches[r]!.push(i);
   });

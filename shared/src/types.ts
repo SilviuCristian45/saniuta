@@ -12,6 +12,7 @@ export interface SledInput {
   steer: number; // -100 (left) .. 100 (right)
   throttle: number; // > 0 kick with the feet ("sus"), < 0 brake ("jos"), -100..100
   fire: boolean; // throw a snowball; latched until the next tick
+  use?: boolean; // use the power-up held; latched until the next tick (absent: not pressed)
 }
 
 export interface PlayerInput extends SledInput {
@@ -47,6 +48,13 @@ export interface PlayerState {
   splatTicks: number; // >0 right after a snowball hit
   snowballs: number; // 0..MAX_SNOWBALLS carried
   throwCooldown: number;
+  // Power-ups (powerups.ts)
+  powerUp: number; // POWER_NONE or the one held (at most one)
+  usePressed: boolean; // consumed at the next tick
+  waxTicks: number; // >0 while waxed (faster)
+  tea: boolean; // the next overturn is saved (until the end of the run)
+  scarfTicks: number; // >0 while snowballs do nothing
+  fogTicks: number; // >0 while someone's fog hides the minimap (drawn only)
   // This run
   finished: boolean;
   finishTicks: number; // run time in ticks from HAI! to the finish line (0 = not finished)
@@ -62,6 +70,7 @@ export interface PlayerState {
   airTime: number; // ticks in the air, all runs of the match
   topSpeed: number; // highest speed of the match (sub-units per tick)
   pickups: number; // snowballs collected
+  powerUpsUsed: number;
   // Set by the server room, outside the simulation (which never reads it): no input for IDLE_TICKS
   // while a run is played. Others see "zzz".
   idle: boolean;
@@ -75,6 +84,7 @@ export interface GameState {
   botLevel: number; // level given to bots added from now on
   trackId: number; // lobby option: TRACK_BUNICII..TRACK_RANDOM
   trackSeed: number; // the current run's track (fixed per named track, drawn from rng for a random one)
+  powerUps: boolean; // lobby option: gift boxes on the track (runs with them never count for the leaderboard)
   round: number;
   tick: number;
   roundTick: number; // ticks since the run started, countdown included
@@ -85,6 +95,8 @@ export interface GameState {
   joinCounter: number;
   /** Ticks until each snowball pile of the track is back (0 = there). Same length as track.piles. */
   pileTimers: number[];
+  /** Ticks until each gift box of the track is back (0 = there). Same length as track.gifts. */
+  giftTimers: number[];
   // Snowballs in flight: BALL_SLOTS flat slots (ballTicks 0 = empty), see snowballs.ts.
   ballX: number[];
   ballY: number[];
@@ -92,6 +104,7 @@ export interface GameState {
   ballVy: number[];
   ballTicks: number[];
   ballOwner: number[]; // thrower's slot
+  ballKind: number[]; // BALL_SMALL | BALL_GIANT
   players: Record<string, PlayerState>;
 }
 
@@ -107,7 +120,13 @@ export type GameEvent =
   | { type: 'pickup'; playerId: string; pile: number }
   | { type: 'throw'; playerId: string; ball: number }
   /** A snowball hit a sled (playerId) or broke on an obstacle/the snowbank (playerId ''). */
-  | { type: 'splat'; playerId: string; byId: string; x: number; y: number }
+  | { type: 'splat'; playerId: string; byId: string; x: number; y: number; big: boolean }
+  /** Took a gift box and got this power-up. */
+  | { type: 'gift'; playerId: string; gift: number; power: number }
+  /** Used the power-up held. */
+  | { type: 'power'; playerId: string; power: number }
+  /** A power-up saved the sled: the tea from an overturn, the scarf from a snowball. */
+  | { type: 'shield'; playerId: string; power: number; x: number; y: number }
   | { type: 'finish'; playerId: string; place: number; ticks: number }
   /** The first finisher started the last FINISH_GRACE_TICKS. */
   | { type: 'lastCall' }

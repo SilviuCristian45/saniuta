@@ -16,6 +16,7 @@ import {
 } from './constants';
 import { idiv } from './fixed';
 import { nextInt, seedFrom } from './rng';
+import { resetGifts, resetPowerUps } from './powerups';
 import { clearBalls, resetPiles } from './snowballs';
 import { centerAt, fixedTrackSeed, getTrack } from './track';
 import type { GameEvent, GameState, PlayerState } from './types';
@@ -38,6 +39,7 @@ export function createGameState(opts: CreateOptions): GameState {
     botLevel: DEFAULT_BOT_LEVEL,
     trackId: DEFAULT_TRACK,
     trackSeed: fixedTrackSeed(DEFAULT_TRACK),
+    powerUps: true,
     round: 0,
     tick: 0,
     roundTick: 0,
@@ -47,12 +49,14 @@ export function createGameState(opts: CreateOptions): GameState {
     rng: seedFrom(opts.seed),
     joinCounter: 0,
     pileTimers: [],
+    giftTimers: [],
     ballX: [],
     ballY: [],
     ballVx: [],
     ballVy: [],
     ballTicks: [],
     ballOwner: [],
+    ballKind: [],
     players: {},
   };
   clearBalls(state);
@@ -140,6 +144,12 @@ export function addPlayer(state: GameState, id: string, name: string, isBot = fa
     splatTicks: 0,
     snowballs: 0,
     throwCooldown: 0,
+    powerUp: 0,
+    usePressed: false,
+    waxTicks: 0,
+    tea: false,
+    scarfTicks: 0,
+    fogTicks: 0,
     finished: false,
     finishTicks: 0,
     place: 0,
@@ -153,6 +163,7 @@ export function addPlayer(state: GameState, id: string, name: string, isBot = fa
     airTime: 0,
     topSpeed: 0,
     pickups: 0,
+    powerUpsUsed: 0,
     idle: false,
   };
   state.players[id] = player;
@@ -223,6 +234,7 @@ export function leavePlayer(state: GameState, id: string): GameEvent[] {
   p.steer = 0;
   p.throttle = 0;
   p.firePressed = false;
+  p.usePressed = false;
   if (state.hostId === id) state.hostId = nextHost(state);
   return [];
 }
@@ -255,6 +267,13 @@ export function setTrack(state: GameState, byId: string, trackId: number): boole
   return true;
 }
 
+/** Host, lobby: "Power-up-uri: pornite / oprite". */
+export function setPowerUps(state: GameState, byId: string, on: boolean): boolean {
+  if (byId !== state.hostId || state.phase !== 'lobby' || typeof on !== 'boolean') return false;
+  state.powerUps = on;
+  return true;
+}
+
 export function canStart(state: GameState, byId: string): boolean {
   return byId === state.hostId && state.phase === 'lobby' && Object.keys(state.players).length >= MIN_PLAYERS_TO_START;
 }
@@ -273,6 +292,7 @@ export function startMatch(state: GameState, byId: string): boolean {
     p.airTime = 0;
     p.topSpeed = 0;
     p.pickups = 0;
+    p.powerUpsUsed = 0;
   }
   state.round = 1;
   startRound(state);
@@ -294,7 +314,7 @@ export function backToLobby(state: GameState, byId: string): boolean {
 
 /**
  * A new run: the track (a new one for "Pârtie aleatoare"), every sled lined up above the start line
- * in a seeded order, the piles back, the countdown starts.
+ * in a seeded order, the piles and gift boxes back, power-ups gone, the countdown starts.
  */
 export function startRound(state: GameState): void {
   state.phase = 'playing';
@@ -305,6 +325,7 @@ export function startRound(state: GameState): void {
   state.trackSeed = state.trackId === TRACK_RANDOM ? nextInt(state, 2147483647) : fixedTrackSeed(state.trackId);
   const track = getTrack(state.trackId, state.trackSeed);
   resetPiles(state, track);
+  resetGifts(state, track);
   clearBalls(state);
 
   const racers = sortedPlayers(state).filter((p) => !p.left);
@@ -335,6 +356,7 @@ export function startRound(state: GameState): void {
     p.splatTicks = 0;
     p.snowballs = 0;
     p.throwCooldown = 0;
+    resetPowerUps(p);
     p.finished = false;
     p.finishTicks = 0;
     p.place = 0;

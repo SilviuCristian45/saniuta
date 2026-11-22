@@ -1,4 +1,4 @@
-import { angleDiff, BALL_SLOTS, type GameState, type PlayerState } from '@saniuta/shared';
+import { angleDiff, BALL_GIANT, BALL_SLOTS, GIANT_TICKS, type GameState, type PlayerState } from '@saniuta/shared';
 
 // Where things are drawn this frame. The simulation moves in whole ticks; transports blend
 // between ticks (and online, between server states) so sleds glide at any frame rate.
@@ -14,8 +14,9 @@ export interface BallPose {
   slot: number;
   x: number;
   y: number;
-  /** Fraction of the flight done (0..1), for the arc it is drawn on. */
+  /** Fraction of the flight done (0..1), for the arc it is drawn on (a giant snowball rolls on the snow). */
   flight: number;
+  giant: boolean;
 }
 
 export interface RenderView {
@@ -44,10 +45,16 @@ export interface BallSnap {
   x: number;
   y: number;
   ticks: number;
+  giant: boolean;
 }
 
 export function ballsOf(state: Readonly<GameState>): BallSnap[] {
-  return Array.from({ length: BALL_SLOTS }, (_, i) => ({ x: state.ballX[i] ?? 0, y: state.ballY[i] ?? 0, ticks: state.ballTicks[i] ?? 0 }));
+  return Array.from({ length: BALL_SLOTS }, (_, i) => ({
+    x: state.ballX[i] ?? 0,
+    y: state.ballY[i] ?? 0,
+    ticks: state.ballTicks[i] ?? 0,
+    giant: state.ballKind[i] === BALL_GIANT,
+  }));
 }
 
 /** The flight fraction of a ball with `ticks` left (BALL_TICKS at the throw). */
@@ -85,18 +92,22 @@ export class TickBlend {
   }
 }
 
-/** Live balls drawn between two snapshots; a ball that was just thrown (no earlier position) is drawn where it is. */
+/**
+ * Live balls drawn between two snapshots; a ball that was just thrown (no earlier position) is drawn
+ * where it is. `total`: a snowball's flight ticks (a giant one lasts GIANT_TICKS).
+ */
 export function blendBalls(prev: readonly BallSnap[], cur: readonly BallSnap[], alpha: number, total: number): BallPose[] {
   const out: BallPose[] = [];
   cur.forEach((b, slot) => {
     if (b.ticks === 0) return;
     const a = prev[slot];
-    const from = a && a.ticks === b.ticks + 1 ? a : b;
+    const from = a && a.ticks === b.ticks + 1 && a.giant === b.giant ? a : b;
     out.push({
       slot,
       x: from.x + (b.x - from.x) * alpha,
       y: from.y + (b.y - from.y) * alpha,
-      flight: flightOf(b.ticks + (1 - alpha), total),
+      flight: flightOf(b.ticks + (1 - alpha), b.giant ? GIANT_TICKS : total),
+      giant: b.giant,
     });
   });
   return out;

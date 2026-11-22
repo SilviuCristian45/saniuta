@@ -1,5 +1,5 @@
 // Runs a bots-only match headless and prints the outcome, to check the simulation without the client.
-//   npm run sim -- --bots usor,mediu,greu,greu --rounds 3 --track 1 --seed abc --verbose
+//   npm run sim -- --bots usor,mediu,greu,greu --rounds 3 --track 1 --seed abc [--powerups off] --verbose
 import { parseArgs } from 'node:util';
 import {
   BOT_EASY,
@@ -28,6 +28,7 @@ const { values } = parseArgs({
     track: { type: 'string', default: '0' }, // 0 Bunicii, 1 Lupului, 2 Nebunilor, 3 aleatoare
     seed: { type: 'string', default: 'carpati' },
     verbose: { type: 'boolean', short: 'v', default: false },
+    powerups: { type: 'string', default: 'on' },
   },
 });
 
@@ -44,6 +45,7 @@ levels.forEach((level, i) => addPlayer(state, `b${i + 1}`, `${BOT_LEVEL_NAMES[le
 state.hostId = 'b1';
 if (!setRounds(state, 'b1', Number(values.rounds))) throw new Error('Manșe: 3, 5 sau 7.');
 if (!setTrack(state, 'b1', Number(values.track))) throw new Error('Pârtia: 0..3.');
+state.powerUps = values.powerups !== 'off';
 startMatch(state, 'b1');
 
 const name = (id: string) => state.players[id]?.name ?? '-';
@@ -56,6 +58,7 @@ while (state.phase !== 'finished') {
   for (const e of runTick(state, [])) {
     if (values.verbose && e.type === 'crash') console.log(`  ${name(e.playerId)} s-a răsturnat`);
     if (values.verbose && e.type === 'splat' && e.playerId) console.log(`  ${name(e.byId)} l-a nimerit pe ${name(e.playerId)}`);
+    if (values.verbose && e.type === 'power') console.log(`  ${name(e.playerId)} folosește power-up-ul ${e.power}`);
     if (e.type === 'roundEnd') {
       console.log(`Manșa ${round} (${track.name}, ${Math.round(track.finishY / 256)} px):`);
       for (const id of e.order) {

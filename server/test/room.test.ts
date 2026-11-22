@@ -152,9 +152,15 @@ describe('SaniutaRoom', () => {
     expect(Object.keys(game(room).players)).toHaveLength(3);
   });
 
-  it('only lets the host start the match, change runs or the track, or add bots', async () => {
+  it('only lets the host start the match, change runs, the track or power-ups, or add bots', async () => {
     const { client, room } = await create();
     const guest = await join(client.roomId);
+    expect(game(room).powerUps).toBe(true);
+    await send(guest, room, 'powerUps', { on: false });
+    await send(client, room, 'powerUps', { on: 'no' });
+    expect(game(room).powerUps).toBe(true);
+    await send(client, room, 'powerUps', { on: false });
+    expect(game(room).powerUps).toBe(false);
     await send(guest, room, 'rounds', { rounds: 7 });
     await send(guest, room, 'track', { trackId: TRACK_NEBUNILOR });
     await send(guest, room, 'addBot');

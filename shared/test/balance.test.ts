@@ -5,7 +5,8 @@ import { BOT_EASY, BOT_HARD, BOT_MEDIUM, FIXED_TRACK_IDS, addPlayer, createGameS
 // Retune BOT_PARAMS against this (scripts/balance.ts prints the same numbers over more matches).
 
 describe('bot balance', () => {
-  it.each(FIXED_TRACK_IDS)('Greu > Mediu > Ușor in points and run wins on track %i', (trackId) => {
+  const cases = FIXED_TRACK_IDS.flatMap((trackId) => [true, false].map((powerUps) => [trackId, powerUps] as const));
+  it.each(cases)('Greu > Mediu > Ușor in points and run wins on track %i (power-ups %s)', (trackId, powerUps) => {
     const points = [0, 0, 0];
     const wins = [0, 0, 0];
     for (let m = 0; m < 4; m++) {
@@ -14,6 +15,7 @@ describe('bot balance', () => {
       state.hostId = 'b0';
       state.roundsTotal = 3;
       setTrack(state, 'b0', trackId);
+      state.powerUps = powerUps;
       startMatch(state, 'b0');
       while (state.phase !== 'finished') runTick(state, []);
       for (const p of Object.values(state.players)) {

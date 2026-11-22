@@ -100,6 +100,7 @@ export class ColyseusTransport implements GameTransport {
   private steer = 0;
   private throttle = 0;
   private fireLatched = false;
+  private useLatched = false;
   /** Predicted own sled at the last two client ticks, drawn in between... */
   private ownPrev: Pose | null = null;
   private ownCur: Pose | null = null;
@@ -179,6 +180,7 @@ export class ColyseusTransport implements GameTransport {
     this.steer = input.steer;
     this.throttle = input.throttle;
     if (input.fire) this.fireLatched = true;
+    if (input.use) this.useLatched = true;
   }
 
   send(msg: RoomMessage): void {
@@ -344,10 +346,12 @@ export class ColyseusTransport implements GameTransport {
   private clientTick(): void {
     if (this.status !== 'connected' || !this.predictor.canDrive()) {
       this.fireLatched = false;
+      this.useLatched = false;
       return;
     }
-    const input = this.predictor.advance({ steer: this.steer, throttle: this.throttle, fire: this.fireLatched });
+    const input = this.predictor.advance({ steer: this.steer, throttle: this.throttle, fire: this.fireLatched, use: this.useLatched });
     this.fireLatched = false;
+    this.useLatched = false;
     this.post({ type: 'input', ...input });
     this.ownPrev = this.ownCur;
     this.ownCur = this.ownPose();
@@ -360,8 +364,9 @@ export class ColyseusTransport implements GameTransport {
     this.steer = 0;
     this.throttle = 0;
     this.fireLatched = false;
+    this.useLatched = false;
     if (this.status !== 'connected' || !this.predictor.canDrive()) return;
-    const input = this.predictor.advance({ steer: 0, throttle: 0, fire: false });
+    const input = this.predictor.advance({ steer: 0, throttle: 0, fire: false, use: false });
     for (const msg of this.outbox.take(Infinity)) this.transmit(msg);
     this.transmit({ type: 'input', ...input });
   }
@@ -459,6 +464,10 @@ export class ColyseusTransport implements GameTransport {
             splatTicks: predicted.splatTicks,
             snowballs: predicted.snowballs,
             throwCooldown: predicted.throwCooldown,
+            powerUp: predicted.powerUp,
+            waxTicks: predicted.waxTicks,
+            tea: predicted.tea,
+            scarfTicks: predicted.scarfTicks,
           },
         },
       };

@@ -52,12 +52,16 @@ const COPIED_MS = 1500;
 /** Phones share the invite through the system sheet (WhatsApp...); desktops copy the link. */
 const SHARE_LABEL = isTouch ? 'Trimite invitația' : 'Copiază link';
 
-/** Room code and invite link, the players, and the host's track / runs / bots / Start. */
+const POWER_OPTIONS = [true, false] as const;
+
+/** Room code and invite link, the players, and the host's track / runs / power-ups / bots / Start. */
 export class LobbyScreen {
   private rows: PlayerRow[] = [];
   private trackButtons: HTMLButtonElement[] = [];
   private roundButtons: HTMLButtonElement[] = [];
   private levelButtons: HTMLButtonElement[] = [];
+  /** "Pornite", "Oprite". */
+  private powerButtons: HTMLButtonElement[] = [];
   private addBotButton!: HTMLButtonElement;
   private removeBotButton!: HTMLButtonElement;
   private startButton!: HTMLButtonElement;
@@ -131,6 +135,7 @@ export class LobbyScreen {
       `După primul sosit mai sunt ${lateSecs} s; cine n-a ajuns ia jumătate din punctele locului.`,
       `Ia bulgări din grămezi (maxim ${MAX_SNOWBALLS}) și aruncă-i în ceilalți ca să-i încetinești.`,
       'Ocolește brazii și stâncile; sari de pe trambuline.',
+      `Cu power-up-uri: ia o cutie-cadou și folosește-o cu ${isTouch ? 'butonul ei' : 'E'}. Cine e mai în urmă primește unele mai bune. Timpii intră în clasament doar fără power-up-uri.`,
     ];
     return el('div', { class: 'lobby-players' }, [this.countText, list, el('p', { class: 'rules', text: rules.join('\n') })]);
   }
@@ -154,6 +159,7 @@ export class LobbyScreen {
       b.classList.add('level-btn');
       return b;
     });
+    this.powerButtons = POWER_OPTIONS.map((on) => button(on ? 'Pornite' : 'Oprite', () => this.transport.send({ type: 'powerUps', on })));
     this.addBotButton = button('+Bot', () => this.transport.send({ type: 'addBot' }));
     this.removeBotButton = button('-Bot', () => this.transport.send({ type: 'removeBot' }));
     this.startButton = button('Start', () => this.transport.send({ type: 'start' }), 'primary', 'medium');
@@ -164,6 +170,8 @@ export class LobbyScreen {
       el('div', { class: 'track-grid' }, this.trackButtons),
       el('div', { class: 'label', text: 'Manșe' }),
       el('div', { class: 'btn-row' }, this.roundButtons),
+      el('div', { class: 'label', text: 'Power-up-uri' }),
+      el('div', { class: 'btn-row' }, this.powerButtons),
       el('div', { class: 'label', text: 'Nivel boți noi' }),
       el('div', { class: 'btn-row' }, this.levelButtons),
       el('div', { class: 'btn-row' }, [this.addBotButton, this.removeBotButton]),
@@ -218,6 +226,11 @@ export class LobbyScreen {
       const b = this.roundButtons[i]!;
       setButtonStyle(b, state.roundsTotal === rounds ? 'primary' : 'secondary');
       b.disabled = !isHost && state.roundsTotal !== rounds;
+    });
+    POWER_OPTIONS.forEach((on, i) => {
+      const b = this.powerButtons[i]!;
+      setButtonStyle(b, state.powerUps === on ? 'primary' : 'secondary');
+      b.disabled = !isHost && state.powerUps !== on;
     });
     BOT_LEVELS.forEach((level, i) => {
       const b = this.levelButtons[i]!;

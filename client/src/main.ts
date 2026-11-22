@@ -15,7 +15,7 @@ import { IntroScene, LeaderboardScene, LobbyScene, MenuScene, NameScene } from '
 import type { MenuData } from './screens/host';
 import { trackVisualViewport } from './ui/html';
 import { initRotatePrompt } from './ui/orientation';
-import { debug, params, quickBotLevel, quickBots, quickRounds, quickSeed, quickStart, quickTrack, tune } from './urlOptions';
+import { debug, params, quickBotLevel, quickBots, quickPowerUps, quickRounds, quickSeed, quickStart, quickTrack, tune } from './urlOptions';
 
 // Intro -> nickname -> menu -> lobby -> game -> lobby (a reload mid-game goes straight back in).
 // Test URL options skip the menus and start a local match at once: ?bots=1..5, ?rounds=3|5|7,
@@ -31,6 +31,7 @@ function localMatch(seed = quickSeed): GameSceneData {
       botLevel: quickBotLevel,
       rounds: quickRounds,
       trackId: quickTrack,
+      powerUps: quickPowerUps,
       seed,
       autoStart: true,
     }),

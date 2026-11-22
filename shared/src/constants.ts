@@ -140,6 +140,8 @@ export const SURFACE_DEEP = 2;
 // Obstacles
 export const OBSTACLE_TREE = 0;
 export const OBSTACLE_ROCK = 1;
+/** Not on the track: a crash caused by the giant snowball (crash events only, for the sound). */
+export const OBSTACLE_GIANT = 2;
 
 // Bots
 export const BOT_EASY = 0;
@@ -149,3 +151,42 @@ export const BOT_LEVELS: readonly number[] = [BOT_EASY, BOT_MEDIUM, BOT_HARD];
 export const DEFAULT_BOT_LEVEL = BOT_MEDIUM;
 /** Names for bots added in the lobby, in order. */
 export const BOT_NAMES: readonly string[] = ['Nea Ghiță', 'Ileana', 'Moș Vasile', 'Tanti Florica', 'Bulgărel', 'Fulguța'];
+
+// Power-ups (lobby option, on by default): gift boxes on the track (track.ts), one power-up held at
+// a time, used with a separate button. Which one a gift gives depends on the place (powerups.ts).
+export const POWER_NONE = 0;
+/** "Ceară pe tălpici": faster for WAX_TICKS. */
+export const POWER_WAX = 1;
+/** "Ceai fierbinte": the next overturn (tree, rock, giant snowball) does not happen; lasts the run. */
+export const POWER_TEA = 2;
+/** "Bulgăre uriaș": rolls down the slope and overturns whoever it touches. */
+export const POWER_GIANT = 3;
+/** "Fular magic": snowballs do nothing for SCARF_TICKS. */
+export const POWER_SCARF = 4;
+/** "Ceață": everyone else loses the minimap for FOG_TICKS. */
+export const POWER_FOG = 5;
+export const POWER_KINDS: readonly number[] = [POWER_WAX, POWER_TEA, POWER_GIANT, POWER_SCARF, POWER_FOG];
+export const GIFT_RADIUS = 12 * FP;
+/** A taken gift box is back this long after. */
+export const GIFT_RESPAWN_TICKS = 3 * TICK_RATE;
+export const WAX_TICKS = 3 * TICK_RATE;
+/** Waxed: extra forward speed per tick on the snow, friction cut to this percent, the cap raised to this percent. */
+export const WAX_ACCEL = 22;
+export const WAX_FRICTION_PCT = 50;
+export const WAX_MAX_SPEED_PCT = 115;
+/** Over the last this many ticks of the wax the raised cap comes back down to the normal one. */
+export const WAX_FADE_TICKS = 20;
+export const SCARF_TICKS = 4 * TICK_RATE;
+export const FOG_TICKS = 4 * TICK_RATE;
+/** The giant snowball: thrown forward at the sled's velocity plus this, then it rolls with gravity. */
+export const GIANT_RADIUS = 18 * FP;
+export const GIANT_PUSH = 900;
+export const GIANT_TICKS = 6 * TICK_RATE;
+/** Per-mille of speed it loses per tick, and its top speed. */
+export const GIANT_FRICTION = 4;
+export const GIANT_MAX_SPEED = 5000;
+/** A sled it rolls over keeps this percent of its speed (and overturns). */
+export const GIANT_HIT_KEEP_PCT = 30;
+/** Ball kinds (GameState.ballKind). */
+export const BALL_SMALL = 0;
+export const BALL_GIANT = 1;

@@ -21,7 +21,7 @@ function humanInputs(state: GameState): PlayerInput[] {
   const t = state.tick;
   return ['h1', 'h2'].map((id, i) => {
     const h = hash32(Math.floor(t / 10), i);
-    return { playerId: id, seq: t + 1, steer: (h % 201) - 100, throttle: ((h >>> 8) % 161) - 60, fire: (h >>> 16) % 23 === 0 };
+    return { playerId: id, seq: t + 1, steer: (h % 201) - 100, throttle: ((h >>> 8) % 161) - 60, fire: (h >>> 16) % 23 === 0, use: (h >>> 20) % 37 === 0 };
   });
 }
 
@@ -43,7 +43,7 @@ describe('determinism', () => {
     const eb = play(b, 6000);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(JSON.stringify(ea)).toBe(JSON.stringify(eb));
-    for (const kind of ['crash', 'jump', 'pickup', 'throw', 'finish', 'roundEnd'] as const) {
+    for (const kind of ['crash', 'jump', 'pickup', 'throw', 'gift', 'power', 'finish', 'roundEnd'] as const) {
       expect(ea.some((e) => e.type === kind), kind).toBe(true);
     }
   });

@@ -17,12 +17,20 @@ export const SFX_NAMES = [
   'hai', // HAI!
   'sosire', // crossing the finish line
   'castig', // the podium (end of the match)
+  'cadou', // a gift box picked up
+  'ceara', // wax on the runners (power-up used)
+  'ceai', // hot tea drunk (power-up used)
+  'urias', // the giant snowball sets off rolling
+  'strivit', // the giant snowball overturns a sled
+  'fular', // the magic scarf put on
+  'ceata', // fog sent over the others
+  'scut', // the tea or the scarf saved a sled
 ] as const;
 export type SfxName = (typeof SFX_NAMES)[number];
 
 /** The same effect more often than this plays once (a pile-up of bumps is one knock). */
 const MIN_GAP_MS = 45;
-const GAP_MS: Partial<Record<SfxName, number>> = { ciocnire: 90, lovit: 70 };
+const GAP_MS: Partial<Record<SfxName, number>> = { ciocnire: 90, lovit: 70, strivit: 120 };
 
 const files = new Map<SfxName, AudioBuffer>();
 const lastPlayed = new Map<SfxName, number>();
@@ -128,6 +136,42 @@ const SYNTH: Record<SfxName, Synth> = {
       tone(ctx, out, t + at, { type: 'sawtooth', from: f, dur, vol: 0.08 });
       tone(ctx, out, t + at, { type: 'triangle', from: f / 2, dur, vol: 0.15 });
     }
+  },
+  // A gift box: a quick sparkle going up.
+  cadou: (ctx, out, t) => {
+    [1047, 1319, 1568, 2093].forEach((f, i) => tone(ctx, out, t + i * 0.045, { type: 'triangle', from: f, dur: 0.16, vol: 0.12 }));
+  },
+  // Wax: a swish speeding up, with a bright edge.
+  ceara: (ctx, out, t) => {
+    noise(ctx, out, t, { dur: 0.45, vol: 0.2, filter: 'bandpass', from: 600, to: 4200 });
+    tone(ctx, out, t, { type: 'sawtooth', from: 220, to: 880, dur: 0.4, vol: 0.05 });
+  },
+  // Tea: two warm gulps and a contented note.
+  ceai: (ctx, out, t) => {
+    tone(ctx, out, t, { type: 'sine', from: 330, to: 180, dur: 0.12, vol: 0.3 });
+    tone(ctx, out, t + 0.16, { type: 'sine', from: 330, to: 180, dur: 0.12, vol: 0.3 });
+    tone(ctx, out, t + 0.34, { type: 'triangle', from: 523, dur: 0.3, vol: 0.12 });
+  },
+  // The giant snowball: a deep rumble rolling off.
+  urias: (ctx, out, t) => {
+    noise(ctx, out, t, { dur: 0.9, vol: 0.35, filter: 'lowpass', from: 500, to: 120 });
+    tone(ctx, out, t, { type: 'sine', from: 90, to: 45, dur: 0.8, vol: 0.4 });
+  },
+  // Flattened by it: a heavy whump and snow everywhere.
+  strivit: (ctx, out, t) => {
+    tone(ctx, out, t, { type: 'sine', from: 160, to: 40, dur: 0.35, vol: 0.6 });
+    noise(ctx, out, t, { dur: 0.6, vol: 0.35, filter: 'lowpass', from: 3000, to: 300 });
+  },
+  // The magic scarf: a shimmer of little bells.
+  fular: (ctx, out, t) => {
+    [1760, 2217, 2637, 2217, 2960].forEach((f, i) => tone(ctx, out, t + i * 0.06, { type: 'sine', from: f, dur: 0.2, vol: 0.08 }));
+  },
+  // Fog: a long soft breath of wind.
+  ceata: (ctx, out, t) => noise(ctx, out, t, { dur: 1.1, vol: 0.22, filter: 'lowpass', from: 300, to: 1200 }),
+  // Saved: a clear bell.
+  scut: (ctx, out, t) => {
+    tone(ctx, out, t, { type: 'sine', from: 1568, dur: 0.5, vol: 0.18 });
+    tone(ctx, out, t, { type: 'triangle', from: 3136, dur: 0.25, vol: 0.05 });
   },
 };
 

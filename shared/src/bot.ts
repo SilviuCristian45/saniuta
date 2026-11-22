@@ -1,12 +1,21 @@
 import {
+  BALL_SMALL,
+  BALL_SLOTS,
   BOT_EASY,
   BOT_HARD,
   BOT_MEDIUM,
   FP,
+  GIFT_RADIUS,
   INPUT_MAX,
   JUMP_MIN_SPEED,
   MAX_SNOWBALLS,
   PILE_RADIUS,
+  POWER_FOG,
+  POWER_GIANT,
+  POWER_NONE,
+  POWER_SCARF,
+  POWER_TEA,
+  POWER_WAX,
   SLED_RADIUS,
   SURFACE_DEEP,
   SURFACE_ICE,
@@ -56,6 +65,14 @@ export interface BotParams {
   mistake: number;
   /** Random aim error, +- angle steps. */
   aimNoise: number;
+  /** Line bonus for a gift box (with empty hands, power-ups on). */
+  giftBonus: number;
+  /**
+   * How it uses a power-up: 0 at random (powerChance percent of decisions), 1 simply (most at once,
+   * the giant snowball once anyone is ahead), 2 cleverly (each when it pays: see wantsPower).
+   */
+  powerSkill: number;
+  powerChance: number;
 }
 
 export const BOT_PARAMS: Record<number, BotParams> = {
@@ -77,6 +94,9 @@ export const BOT_PARAMS: Record<number, BotParams> = {
     throwAlign: 40,
     mistake: 7,
     aimNoise: 35,
+    giftBonus: 0,
+    powerSkill: 0,
+    powerChance: 5,
   },
   [BOT_MEDIUM]: {
     interval: 5,
@@ -96,6 +116,9 @@ export const BOT_PARAMS: Record<number, BotParams> = {
     throwAlign: 28,
     mistake: 6,
     aimNoise: 20,
+    giftBonus: 100,
+    powerSkill: 1,
+    powerChance: 0,
   },
   [BOT_HARD]: {
     interval: 3,
@@ -115,6 +138,9 @@ export const BOT_PARAMS: Record<number, BotParams> = {
     throwAlign: 20,
     mistake: 1,
     aimNoise: 6,
+    giftBonus: 250,
+    powerSkill: 2,
+    powerChance: 0,
   },
 };
 
@@ -236,6 +262,17 @@ function lineCost(state: GameState, track: Track, me: PlayerState, params: BotPa
       }
     }
   }
+  if (state.powerUps && me.powerUp === POWER_NONE && params.giftBonus > 0) {
+    const reach = GIFT_RADIUS + SLED_RADIUS;
+    for (const i of itemsBetween(track, track.rowGifts, me.y, ty)) {
+      if (state.giftTimers[i] !== 0) continue;
+      const gift = track.gifts[i]!;
+      if (pathDist2(path, gift.x, gift.y) < reach * reach) {
+        cost -= params.giftBonus;
+        break;
+      }
+    }
+  }
   // A slower sled ahead on the line: bumping into it costs both of them speed (in a bunched field
   // that adds up to seconds), so go round it, where it will be by the time this sled gets there.
   if (params.sledCost > 0) {
@@ -270,6 +307,53 @@ function throwTarget(state: GameState, me: PlayerState, params: BotParams): Play
   return best;
 }
 
+/** Giant snowball: a rival on the snow ahead within this far down the track (and for a clever bot, nearly in line). */
+const GIANT_RANGE = 700 * FP;
+const GIANT_LINE = 60 * FP;
+/** Scarf: a rival's snowball in flight this close, coming this way, or a rival with snowballs this close behind. */
+const THREAT_RANGE = 220 * FP;
+
+function rivalAhead(state: GameState, me: PlayerState, maxDx: number): boolean {
+  return sortedPlayers(state).some((p) => {
+    if (p.id === me.id || !p.racing || p.finished || !grounded(p) || p.crashTicks > 0) return false;
+    const dy = p.y - me.y;
+    return dy > 2 * SLED_RADIUS && dy < GIANT_RANGE && Math.abs(p.x - me.x) < maxDx;
+  });
+}
+
+function snowballThreat(state: GameState, me: PlayerState): boolean {
+  for (let i = 0; i < BALL_SLOTS; i++) {
+    if (state.ballTicks[i] === 0 || state.ballKind[i] !== BALL_SMALL || state.ballOwner[i] === me.slot) continue;
+    const dx = me.x - state.ballX[i]!;
+    const dy = me.y - state.ballY[i]!;
+    if (Math.abs(dx) < THREAT_RANGE && Math.abs(dy) < THREAT_RANGE && dx * (state.ballVx[i]! - me.vx) + dy * (state.ballVy[i]! - me.vy) > 0) return true;
+  }
+  return sortedPlayers(state).some((p) => {
+    const dy = me.y - p.y;
+    return p.id !== me.id && p.racing && !p.finished && p.snowballs > 0 && dy > 0 && dy < THREAT_RANGE && Math.abs(p.x - me.x) < THREAT_RANGE;
+  });
+}
+
+/** Whether to use the power-up held now. */
+function wantsPower(state: GameState, me: PlayerState, params: BotParams, intent: BotIntent, roll: (salt: number) => number): boolean {
+  if (me.powerUp === POWER_NONE || me.crashTicks > 0) return false;
+  if (params.powerSkill === 0) return roll(11) < params.powerChance;
+  const clever = params.powerSkill >= 2;
+  switch (me.powerUp) {
+    case POWER_WAX:
+      // On a clear line on the snow, already moving; a clever bot not while turning hard.
+      return grounded(me) && intent === 'line' && speedOf(me) > TUNING.pushMaxSpeed && (!clever || Math.abs(me.steer) < INPUT_MAX);
+    case POWER_GIANT:
+      return rivalAhead(state, me, clever ? GIANT_LINE : Infinity);
+    case POWER_SCARF:
+      return !clever || snowballThreat(state, me);
+    case POWER_TEA:
+    case POWER_FOG:
+    default:
+      return true;
+  }
+}
+
 /** The full decision, plus what the bot is trying to do (for the debug overlay). Pure. */
 export function botThink(state: GameState, id: string): BotThought | null {
   const me = state.players[id];
@@ -277,7 +361,7 @@ export function botThink(state: GameState, id: string): BotThought | null {
   const params = paramsFor(me);
   // Kicking off at HAI!: the held input from the countdown is what the sled starts with.
   if (countdownSeconds(state.roundTick) > 0) {
-    return { input: { seq: 0, steer: 0, throttle: INPUT_MAX, fire: false }, intent: 'wait', targetX: me.x, targetY: me.y, targetId: '' };
+    return { input: { seq: 0, steer: 0, throttle: INPUT_MAX, fire: false, use: false }, intent: 'wait', targetX: me.x, targetY: me.y, targetId: '' };
   }
   const track = currentTrack(state);
   const decision = Math.trunc(state.tick / params.interval);
@@ -324,11 +408,13 @@ export function botThink(state: GameState, id: string): BotThought | null {
   let target: PlayerState | undefined;
   if (me.snowballs > 0 && me.throwCooldown === 0 && (target = throwTarget(state, me, params))) fire = roll(5) < params.throwChance;
 
+  const use = wantsPower(state, me, params, intent, roll);
+
   if (roll(2) < params.mistake) {
     if (roll(3) % 2 === 0) steer = -steer || 0; // never -0
     else steer = 0;
   }
-  return { input: { seq: 0, steer, throttle, fire }, intent, targetX: tx, targetY: ty, targetId: fire && target ? target.id : '' };
+  return { input: { seq: 0, steer, throttle, fire, use }, intent, targetX: tx, targetY: ty, targetId: fire && target ? target.id : '' };
 }
 
 /** What the game loop applies for a bot this tick: a new input on decision ticks, null in between. */

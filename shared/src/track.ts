@@ -1,5 +1,6 @@
 import {
   FP,
+  GIFT_RADIUS,
   OBSTACLE_ROCK,
   OBSTACLE_TREE,
   PILE_RADIUS,
@@ -39,6 +40,12 @@ const RAMP_DEPTH = 22 * FP;
 /** Free space kept around a ramp's approach and around piles. */
 const RAMP_CLEAR_X = 90 * FP;
 const PILE_CLEAR = 40 * FP;
+/** A line of gift boxes across the track roughly every this many rows, the first one this far down. */
+const GIFT_EVERY_ROWS = 48;
+const GIFT_FIRST_ROW = START_ROW + 30;
+/** Boxes per line (spread across the track), and the room kept around each. */
+const GIFTS_PER_LINE = 3;
+const GIFT_CLEAR = 36 * FP;
 /** Every stretch of the track keeps an opening at least this wide between obstacles. */
 const MIN_OPENING = 6 * SLED_RADIUS;
 
@@ -209,10 +216,13 @@ export interface Track {
   ramps: Ramp[];
   patches: Patch[];
   piles: Pile[];
+  /** Gift boxes (power-ups); drawn and taken only when the room has power-ups on. */
+  gifts: Pile[];
   rowObstacles: number[][];
   rowRamps: number[][];
   rowPatches: number[][];
   rowPiles: number[][];
+  rowGifts: number[][];
 }
 
 /** Row of a y (clamped to the track). */
@@ -396,16 +406,19 @@ export function generateTrack(trackId: number, seed: number): Track {
     ramps: [],
     patches: [],
     piles: [],
+    gifts: [],
     rowObstacles: [],
     rowRamps: [],
     rowPatches: [],
     rowPiles: [],
+    rowGifts: [],
   };
   for (let r = 0; r < rowCount; r++) {
     track.rowObstacles.push([]);
     track.rowRamps.push([]);
     track.rowPatches.push([]);
     track.rowPiles.push([]);
+    track.rowGifts.push([]);
   }
   const rowY = (r: number) => r * ROW_LEN + idiv(ROW_LEN, 2);
   /** A random x across row r, keeping `margin` from both edges. */
@@ -494,6 +507,28 @@ export function generateTrack(trackId: number, seed: number): Track {
     if (blocked) continue;
     track.piles.push({ x, y });
     track.rowPiles[r]!.push(track.piles.length - 1);
+  }
+
+  // Gift boxes last (everything above stays exactly as it was before they existed): lines of a few
+  // boxes across the track, so a bunched field does not all fight over one.
+  const clearOf = (x: number, y: number, list: readonly { x: number; y: number }[], idx: number[], gap: number) =>
+    idx.every((i) => Math.abs(list[i]!.x - x) >= gap || Math.abs(list[i]!.y - y) >= gap);
+  for (let r = GIFT_FIRST_ROW; r <= lastRow; r += randInt(rng, GIFT_EVERY_ROWS - 8, GIFT_EVERY_ROWS + 8)) {
+    const y = rowY(r);
+    const reach = half[r]! - GIFT_RADIUS - 24 * FP;
+    for (let k = 0; k < GIFTS_PER_LINE; k++) {
+      const x = center[r]! + idiv(reach * (2 * k - (GIFTS_PER_LINE - 1)), GIFTS_PER_LINE);
+      const obstaclesClear = nearby(track, track.rowObstacles, y).every((i) => {
+        const o = track.obstacles[i]!;
+        return Math.abs(o.x - x) >= o.r + GIFT_CLEAR || Math.abs(o.y - y) >= o.r + GIFT_CLEAR;
+      });
+      const rampsClear = track.ramps.every(
+        (ramp) => y <= ramp.y0 - GIFT_CLEAR || y >= ramp.y1 + GIFT_CLEAR || x <= ramp.x0 - GIFT_CLEAR || x >= ramp.x1 + GIFT_CLEAR,
+      );
+      if (!obstaclesClear || !rampsClear || !clearOf(x, y, track.piles, nearby(track, track.rowPiles, y), GIFT_CLEAR)) continue;
+      track.gifts.push({ x, y });
+      track.rowGifts[r]!.push(track.gifts.length - 1);
+    }
   }
   return track;
 }

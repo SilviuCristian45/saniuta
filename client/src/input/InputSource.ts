@@ -4,6 +4,8 @@ export interface RideInput {
   throttle: number; // > 0 kick ("sus"), < 0 brake ("jos")
   /** Snowball throw pressed since the last poll (latched until the next tick by the transport). */
   fire: boolean;
+  /** Power-up press since the last poll (latched like a throw). */
+  use: boolean;
 }
 
 /** Turns a device (keyboard, touch) into riding input. Polled once per frame. */
@@ -15,4 +17,4 @@ export interface InputSource {
   destroy(): void;
 }
 
-export const NO_INPUT: RideInput = { steer: 0, throttle: 0, fire: false };
+export const NO_INPUT: RideInput = { steer: 0, throttle: 0, fire: false, use: false };

@@ -61,7 +61,7 @@ export interface RunResult {
 }
 
 /**
- * The result of a run that just ended, or null if it does not count: a random track, fewer than
+ * The result of a run that just ended, or null if it does not count: a random track, power-ups on, fewer than
  * LEADERBOARD_MIN_HUMANS humans who played it for real, or nobody of them crossed the line.
  */
 export function runResult(
@@ -70,7 +70,8 @@ export function runResult(
   /** "Played for real" this run (the room's activity rule): a sled left to slide on its own does not count. */
   playedForReal: (playerId: string) => boolean,
 ): RunResult | null {
-  if (!FIXED_TRACK_IDS.includes(state.trackId)) return null;
+  // Power-ups change the times (wax, giant snowballs): only runs without them are comparable.
+  if (!FIXED_TRACK_IDS.includes(state.trackId) || state.powerUps) return null;
   const racers = Object.values(state.players).filter((p) => p.racing || p.left);
   const active = racers.filter((p) => !p.isBot && playedForReal(p.id));
   if (active.length < LEADERBOARD_MIN_HUMANS) return null;

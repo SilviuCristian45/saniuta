@@ -10,6 +10,7 @@ export * from './track';
 export * from './match';
 export * from './physics';
 export * from './snowballs';
+export * from './powerups';
 export * from './sim';
 export * from './bot';
 export * from './runner';

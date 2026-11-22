@@ -12,6 +12,7 @@ export const GAME_STATE_KEYS = [
   'botLevel',
   'trackId',
   'trackSeed',
+  'powerUps',
   'round',
   'tick',
   'roundTick',
@@ -23,7 +24,7 @@ export const GAME_STATE_KEYS = [
 ] as const satisfies readonly Exclude<keyof GameState, 'players'>[];
 
 /** The number arrays of the state (ArraySchema<number> on the server). */
-export const GAME_ARRAY_KEYS = ['pileTimers', 'ballX', 'ballY', 'ballVx', 'ballVy', 'ballTicks', 'ballOwner'] as const satisfies readonly Exclude<
+export const GAME_ARRAY_KEYS = ['pileTimers', 'giftTimers', 'ballX', 'ballY', 'ballVx', 'ballVy', 'ballTicks', 'ballOwner', 'ballKind'] as const satisfies readonly Exclude<
   keyof GameState,
   'players'
 >[];
@@ -54,6 +55,12 @@ export const PLAYER_STATE_KEYS = [
   'splatTicks',
   'snowballs',
   'throwCooldown',
+  'powerUp',
+  'usePressed',
+  'waxTicks',
+  'tea',
+  'scarfTicks',
+  'fogTicks',
   'finished',
   'finishTicks',
   'place',
@@ -67,6 +74,7 @@ export const PLAYER_STATE_KEYS = [
   'airTime',
   'topSpeed',
   'pickups',
+  'powerUpsUsed',
   'idle',
 ] as const satisfies readonly (keyof PlayerState)[];
 

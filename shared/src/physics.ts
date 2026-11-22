@@ -13,10 +13,15 @@ import {
   INPUT_MAX,
   JUMP_MIN_SPEED,
   MAX_HEADING_OFFSET,
+  POWER_TEA,
   SLED_MASS,
   SLED_RADIUS,
   SURFACE_DEEP,
   SURFACE_ICE,
+  WAX_ACCEL,
+  WAX_FADE_TICKS,
+  WAX_FRICTION_PCT,
+  WAX_MAX_SPEED_PCT,
 } from './constants';
 import { angleDiff, clamp, icos, idiv, isin, isqrt, TRIG_ONE, wrapAngle } from './fixed';
 import { centerAt, halfWidthAt, nearby, slopeAt, surfaceAt, type Track } from './track';
@@ -42,7 +47,7 @@ export function grounded(p: Readonly<PlayerState>): boolean {
 }
 
 /** Moves `v` toward zero by per-mille `k`, at least by 1, never past zero. */
-function decay(v: number, k: number): number {
+export function decay(v: number, k: number): number {
   if (v === 0 || k <= 0) return v;
   const d = Math.max(Math.abs(idiv(v * k, 1000)), 1);
   return v > 0 ? Math.max(v - d, 0) : Math.min(v + d, 0);
@@ -56,8 +61,16 @@ function gripOf(surface: number): number {
   return surface === SURFACE_ICE ? TUNING.gripIce : surface === SURFACE_DEEP ? TUNING.gripDeep : TUNING.gripSnow;
 }
 
-/** Scales the velocity down to `max` at once. */
-function capSpeed(p: PlayerState, max: number): void {
+/** The speed cap: raised while waxed, coming back down over the wax's last WAX_FADE_TICKS. */
+export function speedCap(p: Readonly<PlayerState>): number {
+  if (p.waxTicks === 0) return TUNING.maxSpeed;
+  const extra = idiv(TUNING.maxSpeed * (WAX_MAX_SPEED_PCT - 100), 100);
+  return TUNING.maxSpeed + idiv(extra * Math.min(p.waxTicks, WAX_FADE_TICKS), WAX_FADE_TICKS);
+}
+
+/** Scales the velocity down to the cap at once. */
+function capSpeed(p: PlayerState): void {
+  const max = speedCap(p);
   const sp = speedOf(p);
   if (sp <= max) return;
   p.vx = idiv(p.vx * max, sp);
@@ -100,7 +113,7 @@ export function rideSled(p: PlayerState, track: Track, events: GameEvent[]): voi
       p.airTotal = 0;
       p.vx += idiv(TUNING.landBoost * icos(p.heading), TRIG_ONE);
       p.vy += idiv(TUNING.landBoost * isin(p.heading), TRIG_ONE);
-      capSpeed(p, TUNING.maxSpeed);
+      capSpeed(p);
       events.push({ type: 'land', playerId: p.id });
     }
     return;
@@ -126,12 +139,16 @@ export function rideSled(p: PlayerState, track: Track, events: GameEvent[]): voi
   const surface = surfaceAt(track, p.x, p.y);
   const brake = p.throttle < 0 ? idiv(-p.throttle * TUNING.brake, INPUT_MAX) : 0;
   const turnDrag = idiv(Math.abs(p.steer) * TUNING.turnDrag, INPUT_MAX);
-  fwd = decay(fwd, frictionOf(surface) + turnDrag + brake);
+  // Waxed runners: a push along the heading and half the friction.
+  const waxed = p.waxTicks > 0;
+  if (waxed && fwd >= 0) fwd += WAX_ACCEL;
+  const friction = waxed ? idiv(frictionOf(surface) * WAX_FRICTION_PCT, 100) : frictionOf(surface);
+  fwd = decay(fwd, friction + turnDrag + brake);
   side = decay(side, gripOf(surface) + brake);
 
   p.vx = idiv(fwd * cos - side * sin, TRIG_ONE);
   p.vy = idiv(fwd * sin + side * cos, TRIG_ONE);
-  capSpeed(p, TUNING.maxSpeed);
+  capSpeed(p);
   move(p);
 }
 
@@ -194,21 +211,41 @@ export function hitObstacles(p: PlayerState, track: Track, events: GameEvent[]):
     // Velocity along the obstacle's surface (the part into it removed).
     const tx = p.vx + idiv(approach * nx, TRIG_ONE);
     const ty = p.vy + idiv(approach * ny, TRIG_ONE);
-    if (approach >= TUNING.crashMinSpeed && p.crashTicks === 0 && p.graceTicks === 0) {
+    if (
+      approach >= TUNING.crashMinSpeed &&
+      p.crashTicks === 0 &&
+      p.graceTicks === 0 &&
+      overturn(p, o.x - idiv(nx * o.r, TRIG_ONE), o.y - idiv(ny * o.r, TRIG_ONE), o.kind, events)
+    ) {
       const back = idiv(approach * CRASH_BOUNCE, 100);
       p.vx = idiv(tx, 2) + idiv(back * nx, TRIG_ONE);
       p.vy = idiv(ty, 2) + idiv(back * ny, TRIG_ONE);
-      p.crashTicks = TUNING.crashTicks;
-      p.airTicks = 0;
-      p.steer = 0;
-      p.firePressed = false;
-      p.crashes++;
-      events.push({ type: 'crash', playerId: p.id, x: o.x - idiv(nx * o.r, TRIG_ONE), y: o.y - idiv(ny * o.r, TRIG_ONE), obstacle: o.kind });
     } else {
       p.vx = tx;
       p.vy = ty;
     }
   }
+}
+
+/**
+ * Overturns the sled (x/y: where it hit, for the effects), unless its hot tea saves it: then the tea
+ * is gone and the sled gets the grace ticks of one that just got up. Returns whether it went over.
+ */
+export function overturn(p: PlayerState, x: number, y: number, obstacle: number, events: GameEvent[]): boolean {
+  if (p.tea) {
+    p.tea = false;
+    p.graceTicks = GRACE_TICKS;
+    events.push({ type: 'shield', playerId: p.id, power: POWER_TEA, x, y });
+    return false;
+  }
+  p.crashTicks = TUNING.crashTicks;
+  p.airTicks = 0;
+  p.steer = 0;
+  p.firePressed = false;
+  p.usePressed = false;
+  p.crashes++;
+  events.push({ type: 'crash', playerId: p.id, x, y, obstacle });
+  return true;
 }
 
 /** Air time for a take-off at this speed. */
